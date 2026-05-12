@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Директ Аналитика — Вход</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f13;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 14px;
+      padding: 40px;
+      width: 100%;
+      max-width: 360px;
+    }
+    h1 { font-size: 18px; color: #fff; margin-bottom: 8px; }
+    p { font-size: 13px; color: #666; margin-bottom: 28px; }
+    input[type="password"] {
+      width: 100%;
+      background: #0f0f13;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 12px 14px;
+      color: #e0e0e0;
+      font-size: 15px;
+      outline: none;
+      margin-bottom: 14px;
+    }
+    input[type="password"]:focus { border-color: #fc3f1d; }
+    button {
+      width: 100%;
+      background: #fc3f1d;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.85; }
+    .error {
+      background: #2a1a1a;
+      border: 1px solid #5a2a2a;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #f08080;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Директ Аналитика</h1>
+    <p>NEDICOM · введите пароль для доступа</p>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+      <input type="password" name="password" placeholder="Пароль" autofocus autocomplete="current-password">
+      <button type="submit">Войти</button>
+    </form>
+  </div>
+</body>
+</html>
