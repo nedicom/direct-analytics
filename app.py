@@ -124,27 +124,27 @@ def index():
 @app.route("/api/debug-campaigns")
 @login_required
 def debug_campaigns():
-    import requests as _requests
-    from direct_client import DIRECT_API_URL, _headers
-    payload = {
-        "method": "get",
-        "params": {
-            "SelectionCriteria": {},
-            "FieldNames": ["Id", "Name", "Status", "Type", "StartDate"],
-            "Page": {"Limit": 1000},
-        },
-    }
-    sess = _requests.Session()
-    sess.trust_env = False
-    resp = sess.post(DIRECT_API_URL + "campaigns", json=payload, headers=_headers(DIRECT_TOKEN))
-    data = resp.json()
-    campaigns = data.get("result", {}).get("Campaigns", [])
+    from direct_client import get_campaigns, get_campaign_stats
+    campaigns = get_campaigns(DIRECT_TOKEN)
+    stats = get_campaign_stats(DIRECT_TOKEN, [])
+    campaign_ids = {c["Id"] for c in campaigns}
+    stats_ids = set(stats.keys())
+    matched = campaign_ids & stats_ids
+    total_impressions = sum(v["impressions"] for v in stats.values())
+    matched_impressions = sum(stats[cid]["impressions"] for cid in matched)
+    top_stats = sorted(stats.items(), key=lambda x: x[1]["impressions"], reverse=True)[:10]
     return jsonify({
-        "total": len(campaigns),
-        "types": list(set(c.get("Type", "?") for c in campaigns)),
-        "statuses": list(set(c.get("Status", "?") for c in campaigns)),
-        "sample": [{"id": c["Id"], "name": c["Name"][:30], "type": c.get("Type"), "status": c.get("Status")} for c in campaigns[:10]],
-        "error": data.get("error"),
+        "campaigns_count": len(campaigns),
+        "stats_campaigns_count": len(stats_ids),
+        "matched_count": len(matched),
+        "total_impressions_in_stats": total_impressions,
+        "matched_impressions": matched_impressions,
+        "unmatched_ids_with_impressions": [
+            {"id": cid, "impressions": stats[cid]["impressions"]}
+            for cid in stats_ids - campaign_ids
+            if stats[cid]["impressions"] > 0
+        ][:10],
+        "top10_by_impressions": [{"id": cid, "impressions": v["impressions"], "clicks": v["clicks"]} for cid, v in top_stats],
     })
 
 
