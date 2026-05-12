@@ -229,12 +229,14 @@
             <tr>
               <td class="campaign-name" title="{{ c.Name }}">{{ c.Name }}</td>
               <td>
-                {% if c.Status == 'ON' %}
+                {% if c.get('State') == 'ON' %}
                   <span class="status-active">● Активна</span>
-                {% elif c.Status in ('SUSPENDED', 'OFF') %}
+                {% elif c.get('State') in ('SUSPENDED', 'OFF', 'OFF_BY_MONITORING') %}
                   <span class="status-suspended">● Остановлена</span>
+                {% elif c.get('State') in ('ENDED', 'ARCHIVED', 'CONVERTED') %}
+                  <span class="status-other">● Завершена</span>
                 {% else %}
-                  <span class="status-other">{{ c.Status }}</span>
+                  <span class="status-other">{{ c.get('State', c.get('Status', '')) }}</span>
                 {% endif %}
               </td>
               <td class="num">{{ '{:,}'.format(s.get('impressions', 0)).replace(',', ' ') }}</td>
