@@ -127,27 +127,26 @@ def index():
 @app.route("/api/debug-campaigns")
 @login_required
 def debug_campaigns():
-    from direct_client import get_campaigns, get_campaign_stats
+    from direct_client import get_campaigns, get_campaigns_by_ids, get_campaign_stats
     campaigns = get_campaigns(DIRECT_TOKEN)
     stats = get_campaign_stats(DIRECT_TOKEN, [])
-    campaign_ids = {c["Id"] for c in campaigns}
-    stats_ids = set(stats.keys())
-    matched = campaign_ids & stats_ids
-    total_impressions = sum(v["impressions"] for v in stats.values())
-    matched_impressions = sum(stats[cid]["impressions"] for cid in matched)
-    top_stats = sorted(stats.items(), key=lambda x: x[1]["impressions"], reverse=True)[:10]
+    known_ids = {c["Id"] for c in campaigns}
+    missing = [cid for cid in stats if cid not in known_ids]
+    by_ids = get_campaigns_by_ids(DIRECT_TOKEN, missing) if missing else []
+    all_campaigns = campaigns + by_ids
+    all_ids = {c["Id"] for c in all_campaigns}
+    matched = known_ids & set(stats.keys())
+    matched_after = all_ids & set(stats.keys())
     return jsonify({
-        "campaigns_count": len(campaigns),
-        "stats_campaigns_count": len(stats_ids),
-        "matched_count": len(matched),
-        "total_impressions_in_stats": total_impressions,
-        "matched_impressions": matched_impressions,
-        "unmatched_ids_with_impressions": [
-            {"id": cid, "impressions": stats[cid]["impressions"]}
-            for cid in stats_ids - campaign_ids
-            if stats[cid]["impressions"] > 0
-        ][:10],
-        "top10_by_impressions": [{"id": cid, "impressions": v["impressions"], "clicks": v["clicks"]} for cid, v in top_stats],
+        "campaigns_from_list": len(campaigns),
+        "campaigns_fetched_by_id": len(by_ids),
+        "total_after_merge": len(all_campaigns),
+        "stats_campaigns_count": len(stats),
+        "matched_before": len(matched),
+        "matched_after": len(matched_after),
+        "impressions_before": sum(stats[cid]["impressions"] for cid in matched),
+        "impressions_after": sum(stats[cid]["impressions"] for cid in matched_after),
+        "fetched_by_id_sample": [{"id": c["Id"], "name": c["Name"][:30]} for c in by_ids[:5]],
     })
 
 
