@@ -121,6 +121,44 @@ def index():
                            error=error)
 
 
+@app.route("/api/debug-stats")
+@login_required
+def debug_stats():
+    import requests as _requests
+    from datetime import datetime, timedelta
+    from direct_client import DIRECT_API_URL, _headers
+    date_to = datetime.now().strftime("%Y-%m-%d")
+    date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    payload = {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {"DateFrom": date_from, "DateTo": date_to},
+            "FieldNames": ["CampaignId", "Date", "Impressions", "Clicks", "Cost", "Ctr"],
+            "ReportName": f"dbg_{date_from}_{date_to}",
+            "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
+            "DateRangeType": "CUSTOM_DATE",
+            "Format": "TSV",
+            "IncludeVAT": "YES",
+            "IncludeDiscount": "NO",
+        },
+    }
+    headers = _headers(DIRECT_TOKEN)
+    headers["processingMode"] = "auto"
+    headers["returnMoneyInMicros"] = "false"
+    sess = _requests.Session()
+    sess.trust_env = False
+    resp = sess.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
+    lines = resp.text.strip().split("\n")
+    return jsonify({
+        "http_status": resp.status_code,
+        "total_lines": len(lines),
+        "header": lines[0] if lines else "",
+        "first_5_rows": lines[1:6],
+        "last_2_rows": lines[-2:],
+        "raw_start": resp.text[:500],
+    })
+
+
 @app.route("/api/refresh")
 @login_required
 def refresh():
