@@ -23,7 +23,9 @@ def get_campaigns(token: str) -> list[dict]:
             "Page": {"Limit": 100},
         },
     }
-    resp = requests.post(DIRECT_API_URL + "campaigns", json=payload, headers=_headers(token))
+    session = requests.Session()
+    session.trust_env = False
+    resp = session.post(DIRECT_API_URL + "campaigns", json=payload, headers=_headers(token))
     data = resp.json()
     error = data.get("error")
     if error:
@@ -62,7 +64,9 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
     headers["processingMode"] = "auto"
     headers["returnMoneyInMicros"] = "false"
 
-    resp = requests.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
+    session = requests.Session()
+    session.trust_env = False
+    resp = session.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
 
     if resp.status_code not in (200, 201, 202):
         return {}
