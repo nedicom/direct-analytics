@@ -18,7 +18,13 @@ def get_campaigns(token: str) -> list[dict]:
     payload = {
         "method": "get",
         "params": {
-            "SelectionCriteria": {},
+            "SelectionCriteria": {
+                "Types": [
+                    "TEXT_CAMPAIGN", "DYNAMIC_TEXT_CAMPAIGN", "MOBILE_APP_CAMPAIGN",
+                    "CPM_BANNER_CAMPAIGN", "SMART_CAMPAIGN", "UNIFIED_CAMPAIGN",
+                    "MCBANNER_CAMPAIGN",
+                ]
+            },
             "FieldNames": ["Id", "Name", "Status", "StartDate"],
             "Page": {"Limit": 1000},
         },
