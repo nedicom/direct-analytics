@@ -22,7 +22,6 @@ def get_campaigns(token: str) -> list[dict]:
                 "Types": [
                     "TEXT_CAMPAIGN", "DYNAMIC_TEXT_CAMPAIGN", "MOBILE_APP_CAMPAIGN",
                     "CPM_BANNER_CAMPAIGN", "SMART_CAMPAIGN", "UNIFIED_CAMPAIGN",
-                    "MCBANNER_CAMPAIGN",
                 ]
             },
             "FieldNames": ["Id", "Name", "Status", "StartDate"],
