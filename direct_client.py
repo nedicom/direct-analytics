@@ -34,10 +34,7 @@ def get_campaigns(token: str) -> list[dict]:
 
 
 def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> dict[int, dict]:
-    """Возвращает статистику по кампаниям за последние N дней."""
-    if not campaign_ids:
-        return {}
-
+    """Возвращает статистику по всем кампаниям за последние N дней."""
     date_to = datetime.now().strftime("%Y-%m-%d")
     date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
@@ -47,11 +44,10 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
             "SelectionCriteria": {
                 "DateFrom": date_from,
                 "DateTo": date_to,
-                "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(i) for i in campaign_ids]}],
             },
             "FieldNames": ["CampaignId", "Date"],
             "CampaignFields": ["Impressions", "Clicks", "Cost", "Ctr"],
-            "ReportName": "campaign_stats",
+            "ReportName": f"stats_{date_from}_{date_to}",
             "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
             "DateRangeType": "CUSTOM_DATE",
             "Format": "TSV",
