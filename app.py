@@ -6,7 +6,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, render_template, request, session
 
-from direct_client import get_campaigns, get_campaign_stats
+from direct_client import get_campaigns, get_campaigns_by_ids, get_campaign_stats
 
 load_dotenv()
 
@@ -101,8 +101,11 @@ def index():
     error = None
     try:
         campaigns = get_campaigns(DIRECT_TOKEN)
-        ids = [c["Id"] for c in campaigns]
-        campaign_stats = get_campaign_stats(DIRECT_TOKEN, ids)
+        campaign_stats = get_campaign_stats(DIRECT_TOKEN, [])
+        known_ids = {c["Id"] for c in campaigns}
+        missing = [cid for cid in campaign_stats if cid not in known_ids]
+        if missing:
+            campaigns += get_campaigns_by_ids(DIRECT_TOKEN, missing)
     except Exception as e:
         error = str(e)
     def _sort_key(c):
@@ -206,8 +209,11 @@ def analyze():
 
     try:
         campaigns = get_campaigns(DIRECT_TOKEN)
-        ids = [c["Id"] for c in campaigns]
-        campaign_stats = get_campaign_stats(DIRECT_TOKEN, ids)
+        campaign_stats = get_campaign_stats(DIRECT_TOKEN, [])
+        known_ids = {c["Id"] for c in campaigns}
+        missing = [cid for cid in campaign_stats if cid not in known_ids]
+        if missing:
+            campaigns += get_campaigns_by_ids(DIRECT_TOKEN, missing)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

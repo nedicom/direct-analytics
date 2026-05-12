@@ -14,16 +14,11 @@ def _headers(token: str) -> dict:
     }
 
 
-def get_campaigns(token: str) -> list[dict]:
+def _campaigns_request(token: str, selection_criteria: dict) -> list[dict]:
     payload = {
         "method": "get",
         "params": {
-            "SelectionCriteria": {
-                "Types": [
-                    "TEXT_CAMPAIGN", "DYNAMIC_TEXT_CAMPAIGN", "MOBILE_APP_CAMPAIGN",
-                    "CPM_BANNER_CAMPAIGN", "SMART_CAMPAIGN", "UNIFIED_CAMPAIGN",
-                ]
-            },
+            "SelectionCriteria": selection_criteria,
             "FieldNames": ["Id", "Name", "Status", "StartDate"],
             "Page": {"Limit": 1000},
         },
@@ -36,6 +31,16 @@ def get_campaigns(token: str) -> list[dict]:
     if error:
         raise Exception(error.get("error_detail") or error.get("error_string", "Ошибка Яндекс.Директ"))
     return data.get("result", {}).get("Campaigns", [])
+
+
+def get_campaigns(token: str) -> list[dict]:
+    return _campaigns_request(token, {})
+
+
+def get_campaigns_by_ids(token: str, ids: list[int]) -> list[dict]:
+    if not ids:
+        return []
+    return _campaigns_request(token, {"Ids": ids})
 
 
 def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> dict:
