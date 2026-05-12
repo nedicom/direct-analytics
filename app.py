@@ -121,6 +121,33 @@ def index():
                            error=error)
 
 
+@app.route("/api/debug-campaigns")
+@login_required
+def debug_campaigns():
+    import requests as _requests
+    from direct_client import DIRECT_API_URL, _headers
+    payload = {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {},
+            "FieldNames": ["Id", "Name", "Status", "Type", "StartDate"],
+            "Page": {"Limit": 1000},
+        },
+    }
+    sess = _requests.Session()
+    sess.trust_env = False
+    resp = sess.post(DIRECT_API_URL + "campaigns", json=payload, headers=_headers(DIRECT_TOKEN))
+    data = resp.json()
+    campaigns = data.get("result", {}).get("Campaigns", [])
+    return jsonify({
+        "total": len(campaigns),
+        "types": list(set(c.get("Type", "?") for c in campaigns)),
+        "statuses": list(set(c.get("Status", "?") for c in campaigns)),
+        "sample": [{"id": c["Id"], "name": c["Name"][:30], "type": c.get("Type"), "status": c.get("Status")} for c in campaigns[:10]],
+        "error": data.get("error"),
+    })
+
+
 @app.route("/api/debug-stats")
 @login_required
 def debug_stats():

@@ -68,7 +68,8 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
 
     result: dict[int, dict] = {}
     lines = resp.text.strip().split("\n")
-    for line in lines[1:]:  # пропускаем заголовок
+    # Line 0: report name, Line 1: column headers, Line 2+: data
+    for line in lines[2:]:
         parts = line.split("\t")
         if len(parts) < 5:
             continue
