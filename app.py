@@ -105,6 +105,10 @@ def index():
         campaign_stats = get_campaign_stats(DIRECT_TOKEN, ids)
     except Exception as e:
         error = str(e)
+    def _sort_key(c):
+        state_order = {"ON": 0}.get(c.get("State", ""), 1)
+        return (state_order, -(int(c.get("StartDate", "0").replace("-", "") or 0)))
+    campaigns.sort(key=_sort_key)
     stats = calc_stats(campaigns, campaign_stats)
     history = load_history()
     return render_template("index.html",
