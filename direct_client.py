@@ -19,7 +19,7 @@ def get_campaigns(token: str) -> list[dict]:
         "method": "get",
         "params": {
             "SelectionCriteria": {},
-            "FieldNames": ["Id", "Name", "Status", "State", "DailyBudget", "StartDate", "Statistics"],
+            "FieldNames": ["Id", "Name", "Status", "State", "StartDate"],
             "Page": {"Limit": 1000},
         },
     }
