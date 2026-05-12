@@ -106,8 +106,10 @@ def index():
     except Exception as e:
         error = str(e)
     def _sort_key(c):
-        state_order = {"ON": 0}.get(c.get("State", ""), 1)
-        return (state_order, -(int(c.get("StartDate", "0").replace("-", "") or 0)))
+        state = c.get("State", "")
+        status = c.get("Status", "")
+        is_active = (state == "ON") or (not state and status == "ACCEPTED")
+        return (0 if is_active else 1, -(int(c.get("StartDate", "0").replace("-", "") or 0)))
     campaigns.sort(key=_sort_key)
     stats = calc_stats(campaigns, campaign_stats)
     history = load_history()

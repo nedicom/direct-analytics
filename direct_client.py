@@ -19,7 +19,7 @@ def get_campaigns(token: str) -> list[dict]:
         "method": "get",
         "params": {
             "SelectionCriteria": {},
-            "FieldNames": ["Id", "Name", "Status", "State", "StartDate"],
+            "FieldNames": ["Id", "Name", "Status", "StartDate"],
             "Page": {"Limit": 1000},
         },
     }
@@ -33,7 +33,7 @@ def get_campaigns(token: str) -> list[dict]:
     return data.get("result", {}).get("Campaigns", [])
 
 
-def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> dict[int, dict]:
+def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> dict:
     """Возвращает статистику по всем кампаниям за последние N дней."""
     date_to = datetime.now().strftime("%Y-%m-%d")
     date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
@@ -65,10 +65,11 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
     resp = session.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
 
     if resp.status_code not in (200, 201, 202):
-        return {}
+        raise Exception(f"Reports API: HTTP {resp.status_code} — {resp.text[:300]}")
 
     result: dict[int, dict] = {}
-    for line in resp.text.strip().split("\n")[1:]:  # пропускаем заголовок
+    lines = resp.text.strip().split("\n")
+    for line in lines[1:]:  # пропускаем заголовок
         parts = line.split("\t")
         if len(parts) < 5:
             continue
@@ -77,18 +78,17 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
             impressions = int(parts[2]) if parts[2] != "--" else 0
             clicks = int(parts[3]) if parts[3] != "--" else 0
             cost = float(parts[4]) if parts[4] != "--" else 0.0
-            ctr = float(parts[5]) if len(parts) > 5 and parts[5] != "--" else 0.0
             if cid not in result:
                 result[cid] = {"impressions": 0, "clicks": 0, "cost": 0.0, "ctr": 0.0}
             result[cid]["impressions"] += impressions
             result[cid]["clicks"] += clicks
             result[cid]["cost"] += cost
-            if impressions:
-                result[cid]["ctr"] = round(result[cid]["clicks"] / result[cid]["impressions"] * 100, 2)
         except (ValueError, IndexError):
             continue
 
     for cid in result:
         result[cid]["cost"] = round(result[cid]["cost"], 2)
+        if result[cid]["impressions"]:
+            result[cid]["ctr"] = round(result[cid]["clicks"] / result[cid]["impressions"] * 100, 2)
 
     return result
