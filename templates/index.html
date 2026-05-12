@@ -267,7 +267,7 @@
         <div class="card-header">История анализов</div>
         <div class="history-list">
           {% for h in history|reverse %}
-          <div class="history-item" onclick="showHistory(`{{ h.analysis | replace('`', \"'\") | replace('\n', '\\n') }}`, `{{ (h.get('title') or '') | replace('`', \"'\") }}`, {{ 'true' if h.get('is_question') else 'false' }})">
+          <div class="history-item" onclick="showHistory({{ h.analysis | tojson }}, {{ (h.get('title') or '') | tojson }}, {{ 'true' if h.get('is_question') else 'false' }})">
             <div class="history-date">{{ h.date }}{% if h.get('is_question') %} &nbsp;·&nbsp; <span style="color:#fc3f1d">вопрос</span>{% endif %}</div>
             <div class="history-preview">{% if h.get('is_question') %}💬 {% endif %}{{ h.get('title') or h.analysis[:80] }}</div>
           </div>
@@ -305,7 +305,7 @@
   }
 
   function showHistory(text, title, isQuestion) {
-    showAnalysis(text.replace(/\\n/g, '\n'), title, isQuestion);
+    showAnalysis(text, title, isQuestion);
     document.getElementById('analysisBox').scrollIntoView({ behavior: 'smooth' });
   }
 
