@@ -255,7 +255,7 @@
                 {% elif status == 'MODERATION' %}
                   <span class="status-other">● Модерация</span>
                 {% else %}
-                  <span class="status-other">{{ state or status }}</span>
+                  <span class="status-other">{{ state or status or "—" }}</span>
                 {% endif %}
               </td>
               <td class="num">{{ '{:,}'.format(s.get('impressions', 0)).replace(',', ' ') }}</td>

@@ -55,7 +55,7 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
                 "DateFrom": date_from,
                 "DateTo": date_to,
             },
-            "FieldNames": ["CampaignId", "Date", "Impressions", "Clicks", "Cost", "Ctr"],
+            "FieldNames": ["CampaignId", "CampaignName", "Date", "Impressions", "Clicks", "Cost", "Ctr"],
             "ReportName": f"stats_{date_from}_{date_to}",
             "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
             "DateRangeType": "CUSTOM_DATE",
@@ -76,20 +76,21 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
     if resp.status_code not in (200, 201, 202):
         raise Exception(f"Reports API: HTTP {resp.status_code} — {resp.text[:300]}")
 
+    # Columns: CampaignId(0), CampaignName(1), Date(2), Impressions(3), Clicks(4), Cost(5), Ctr(6)
     result: dict[int, dict] = {}
     lines = resp.text.strip().split("\n")
-    # Line 0: report name, Line 1: column headers, Line 2+: data
-    for line in lines[2:]:
+    for line in lines[2:]:  # skip report name + column headers
         parts = line.split("\t")
-        if len(parts) < 5:
+        if len(parts) < 6:
             continue
         try:
             cid = int(parts[0])
-            impressions = int(parts[2]) if parts[2] != "--" else 0
-            clicks = int(parts[3]) if parts[3] != "--" else 0
-            cost = float(parts[4]) if parts[4] != "--" else 0.0
+            name = parts[1]
+            impressions = int(parts[3]) if parts[3] != "--" else 0
+            clicks = int(parts[4]) if parts[4] != "--" else 0
+            cost = float(parts[5]) if parts[5] != "--" else 0.0
             if cid not in result:
-                result[cid] = {"impressions": 0, "clicks": 0, "cost": 0.0, "ctr": 0.0}
+                result[cid] = {"name": name, "impressions": 0, "clicks": 0, "cost": 0.0, "ctr": 0.0}
             result[cid]["impressions"] += impressions
             result[cid]["clicks"] += clicks
             result[cid]["cost"] += cost

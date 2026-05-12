@@ -100,20 +100,20 @@ def index():
     campaign_stats = {}
     error = None
     try:
-        campaigns = get_campaigns(DIRECT_TOKEN)
         campaign_stats = get_campaign_stats(DIRECT_TOKEN, [])
-        known_ids = {c["Id"] for c in campaigns}
-        missing = [cid for cid in campaign_stats if cid not in known_ids]
-        if missing:
-            campaigns += get_campaigns_by_ids(DIRECT_TOKEN, missing)
+        api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
+        for cid, s in campaign_stats.items():
+            meta = api_by_id.get(cid, {})
+            campaigns.append({
+                "Id": cid,
+                "Name": s["name"],
+                "Status": meta.get("Status", ""),
+                "State": meta.get("State", ""),
+                "StartDate": meta.get("StartDate", ""),
+            })
     except Exception as e:
         error = str(e)
-    def _sort_key(c):
-        state = c.get("State", "")
-        status = c.get("Status", "")
-        is_active = (state == "ON") or (not state and status == "ACCEPTED")
-        return (0 if is_active else 1, -(int(c.get("StartDate", "0").replace("-", "") or 0)))
-    campaigns.sort(key=_sort_key)
+    campaigns.sort(key=lambda c: -campaign_stats.get(c["Id"], {}).get("cost", 0))
     stats = calc_stats(campaigns, campaign_stats)
     history = load_history()
     return render_template("index.html",
@@ -207,12 +207,17 @@ def analyze():
         return jsonify({"ok": False, "error": "API ключ Claude не настроен"}), 503
 
     try:
-        campaigns = get_campaigns(DIRECT_TOKEN)
         campaign_stats = get_campaign_stats(DIRECT_TOKEN, [])
-        known_ids = {c["Id"] for c in campaigns}
-        missing = [cid for cid in campaign_stats if cid not in known_ids]
-        if missing:
-            campaigns += get_campaigns_by_ids(DIRECT_TOKEN, missing)
+        api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
+        campaigns = []
+        for cid, s in campaign_stats.items():
+            meta = api_by_id.get(cid, {})
+            campaigns.append({
+                "Id": cid,
+                "Name": s["name"],
+                "Status": meta.get("Status", ""),
+                "State": meta.get("State", ""),
+            })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
