@@ -102,10 +102,22 @@
       font-weight: 500;
       color: #ddd;
       max-width: 300px;
+    }
+    .campaign-name-text {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: block;
     }
+    .campaign-id {
+      font-size: 11px;
+      color: #666;
+      cursor: pointer;
+      user-select: none;
+      display: inline-block;
+      margin-top: 2px;
+    }
+    .campaign-id:hover { color: #fc3f1d; }
 
     .num { color: #aaa; }
     .num-high { color: #fc3f1d; font-weight: 600; }
@@ -224,10 +236,13 @@
             </tr>
           </thead>
           <tbody>
-            {% for c in campaigns %}
+            {% for c in campaigns|sort(attribute='StartDate', reverse=True) %}
             {% set s = campaign_stats.get(c.Id, {}) %}
             <tr>
-              <td class="campaign-name" title="{{ c.Name }}">{{ c.Name }}</td>
+              <td class="campaign-name" title="{{ c.Name }}">
+                <span class="campaign-name-text">{{ c.Name }}</span>
+                <span class="campaign-id" onclick="copyId({{ c.Id }}, this)" title="Нажми чтобы скопировать">ID {{ c.Id }}</span>
+              </td>
               <td>
                 {% if c.get('State') == 'ON' %}
                   <span class="status-active">● Активна</span>
@@ -304,6 +319,13 @@
     const el = document.getElementById('analysisText');
     el.style.display = 'block';
     el.textContent = text;
+  }
+
+  function copyId(id, el) {
+    navigator.clipboard.writeText(String(id));
+    const orig = el.textContent;
+    el.textContent = '✓ скопировано';
+    setTimeout(() => { el.textContent = orig; }, 1200);
   }
 
   function showHistory(text, title, isQuestion) {
