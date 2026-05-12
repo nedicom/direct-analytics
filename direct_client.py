@@ -20,7 +20,7 @@ def get_campaigns(token: str) -> list[dict]:
         "params": {
             "SelectionCriteria": {},
             "FieldNames": ["Id", "Name", "Status", "State", "DailyBudget", "StartDate", "Statistics"],
-            "Page": {"Limit": 100},
+            "Page": {"Limit": 1000},
         },
     }
     session = requests.Session()

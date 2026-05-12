@@ -244,7 +244,15 @@
                 <span class="campaign-id" onclick="copyId({{ c.Id }}, this)" title="Нажми чтобы скопировать">ID {{ c.Id }}</span>
               </td>
               <td>
-                <span style="font-size:11px;color:#888">{{ c.get('State', '?') }} / {{ c.get('Status', '?') }}</span>
+                {% if c.get('State') == 'ON' %}
+                  <span class="status-active">● Активна</span>
+                {% elif c.get('State') in ('SUSPENDED', 'OFF', 'OFF_BY_MONITORING') %}
+                  <span class="status-suspended">● Остановлена</span>
+                {% elif c.get('State') in ('ENDED', 'ARCHIVED', 'CONVERTED') %}
+                  <span class="status-other">● Завершена</span>
+                {% else %}
+                  <span class="status-other">{{ c.get('State', c.get('Status', '')) }}</span>
+                {% endif %}
               </td>
               <td class="num">{{ '{:,}'.format(s.get('impressions', 0)).replace(',', ' ') }}</td>
               <td class="{% if s.get('clicks', 0) > 100 %}num-high{% else %}num{% endif %}">{{ s.get('clicks', 0) }}</td>
