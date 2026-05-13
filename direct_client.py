@@ -43,10 +43,18 @@ def get_campaigns_by_ids(token: str, ids: list[int]) -> list[dict]:
     return _campaigns_request(token, {"Ids": ids})
 
 
-def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> dict:
-    """Возвращает статистику по всем кампаниям за последние N дней."""
+def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> tuple[dict, dict]:
+    """Returns (campaign_stats, daily_stats).
+
+    campaign_stats: campaign_id → {name, impressions, clicks, cost, ctr,
+                                    last7d_cost, last7d_clicks, last7d_impressions,
+                                    prev7d_cost, prev7d_clicks, prev7d_impressions}
+    daily_stats: date_str → {impressions, clicks, cost}
+    """
     date_to = datetime.now().strftime("%Y-%m-%d")
     date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    seven_days_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    fourteen_days_ago = (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d")
 
     payload = {
         "method": "get",
@@ -78,6 +86,8 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
 
     # Columns: CampaignId(0), CampaignName(1), Date(2), Impressions(3), Clicks(4), Cost(5), Ctr(6)
     result: dict[int, dict] = {}
+    daily: dict[str, dict] = {}
+
     lines = resp.text.strip().split("\n")
     for line in lines[2:]:  # skip report name + column headers
         parts = line.split("\t")
@@ -86,20 +96,48 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> d
         try:
             cid = int(parts[0])
             name = parts[1]
+            date = parts[2]
             impressions = int(parts[3]) if parts[3] != "--" else 0
             clicks = int(parts[4]) if parts[4] != "--" else 0
             cost = float(parts[5]) if parts[5] != "--" else 0.0
+
             if cid not in result:
-                result[cid] = {"name": name, "impressions": 0, "clicks": 0, "cost": 0.0, "ctr": 0.0}
+                result[cid] = {
+                    "name": name,
+                    "impressions": 0, "clicks": 0, "cost": 0.0, "ctr": 0.0,
+                    "last7d_cost": 0.0, "last7d_clicks": 0, "last7d_impressions": 0,
+                    "prev7d_cost": 0.0, "prev7d_clicks": 0, "prev7d_impressions": 0,
+                }
             result[cid]["impressions"] += impressions
             result[cid]["clicks"] += clicks
             result[cid]["cost"] += cost
+
+            if date >= seven_days_ago:
+                result[cid]["last7d_cost"] += cost
+                result[cid]["last7d_clicks"] += clicks
+                result[cid]["last7d_impressions"] += impressions
+            elif date >= fourteen_days_ago:
+                result[cid]["prev7d_cost"] += cost
+                result[cid]["prev7d_clicks"] += clicks
+                result[cid]["prev7d_impressions"] += impressions
+
+            if date not in daily:
+                daily[date] = {"impressions": 0, "clicks": 0, "cost": 0.0}
+            daily[date]["impressions"] += impressions
+            daily[date]["clicks"] += clicks
+            daily[date]["cost"] += cost
+
         except (ValueError, IndexError):
             continue
 
     for cid in result:
         result[cid]["cost"] = round(result[cid]["cost"], 2)
+        result[cid]["last7d_cost"] = round(result[cid]["last7d_cost"], 2)
+        result[cid]["prev7d_cost"] = round(result[cid]["prev7d_cost"], 2)
         if result[cid]["impressions"]:
             result[cid]["ctr"] = round(result[cid]["clicks"] / result[cid]["impressions"] * 100, 2)
 
-    return result
+    for date in daily:
+        daily[date]["cost"] = round(daily[date]["cost"], 2)
+
+    return result, daily

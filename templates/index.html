@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Директ Аналитика — NEDICOM</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -25,34 +26,81 @@
     header h1 { font-size: 18px; color: #fff; letter-spacing: 0.5px; }
     header span { color: #fc3f1d; font-size: 13px; }
 
-    .container { max-width: 1300px; margin: 0 auto; padding: 24px 32px; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
 
+    /* ── Alerts ── */
+    .alerts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .alert-red   { background: #2a1218; border: 1px solid #6b2020; color: #f08080; }
+    .alert-orange{ background: #1f1a0e; border: 1px solid #6b4a10; color: #e0a060; }
+    .alert-dismiss {
+      margin-left: auto; background: none; border: none; color: inherit;
+      cursor: pointer; opacity: 0.5; font-size: 16px; line-height: 1;
+      flex-shrink: 0;
+    }
+    .alert-dismiss:hover { opacity: 1; }
+
+    /* ── Stats row ── */
     .stats-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 12px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
-
     .stat-card {
       background: #1a1a24;
       border: 1px solid #2a2a3a;
       border-radius: 10px;
-      padding: 16px 20px;
+      padding: 14px 18px;
     }
     .stat-label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
-    .stat-value { font-size: 22px; font-weight: 700; color: #fff; }
+    .stat-value { font-size: 20px; font-weight: 700; color: #fff; }
     .stat-sub { font-size: 12px; color: #666; margin-top: 4px; }
+    .stat-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+    .badge-up   { background: #1a2e1a; color: #4caf50; }
+    .badge-down { background: #2e1a1a; color: #f08080; }
+    .badge-flat { background: #1e1e2a; color: #666; }
 
+    /* ── Charts ── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .chart-card {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+    .chart-title { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 12px; }
+    .chart-canvas-wrap { position: relative; height: 140px; }
+
+    /* ── Toolbar ── */
     .toolbar {
       display: flex;
       gap: 12px;
-      margin-bottom: 24px;
+      margin-bottom: 12px;
       align-items: center;
+      flex-wrap: wrap;
     }
-
     .btn {
-      padding: 10px 20px;
+      padding: 9px 18px;
       border: none;
       border-radius: 8px;
       cursor: pointer;
@@ -62,12 +110,49 @@
     }
     .btn:hover { opacity: 0.85; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: #fc3f1d; color: #fff; }
+    .btn-primary   { background: #fc3f1d; color: #fff; }
     .btn-secondary { background: #2a2a3a; color: #ccc; }
 
-    .status { font-size: 13px; color: #888; margin-left: 8px; }
+    .status-txt { font-size: 13px; color: #888; margin-left: 4px; }
 
-    .grid { display: grid; grid-template-columns: 1fr 420px; gap: 24px; }
+    /* ── Filters ── */
+    .filter-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .filter-label { font-size: 12px; color: #555; }
+    .filter-group { display: flex; gap: 4px; }
+    .fbtn {
+      padding: 5px 12px;
+      border: 1px solid #2a2a3a;
+      border-radius: 6px;
+      background: transparent;
+      color: #888;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .fbtn:hover { border-color: #fc3f1d; color: #ccc; }
+    .fbtn.active { background: #fc3f1d22; border-color: #fc3f1d; color: #fc3f1d; font-weight: 600; }
+    .filter-sep { color: #333; }
+    .min-cost-input {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: #e0e0e0;
+      font-size: 12px;
+      width: 110px;
+      outline: none;
+    }
+    .min-cost-input:focus { border-color: #fc3f1d; }
+    .sort-info { font-size: 12px; color: #444; margin-left: auto; }
+
+    /* ── Main grid ── */
+    .grid { display: grid; grid-template-columns: 1fr 400px; gap: 24px; }
 
     .card {
       background: #1a1a24;
@@ -75,99 +160,121 @@
       border-radius: 12px;
       overflow: hidden;
     }
-
     .card-header {
-      padding: 16px 20px;
+      padding: 14px 20px;
       border-bottom: 1px solid #2a2a3a;
       font-size: 14px;
       font-weight: 600;
       color: #ccc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
+    .card-count { font-size: 12px; color: #555; font-weight: 400; }
 
+    /* ── Table ── */
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th {
-      padding: 12px 16px;
+      padding: 10px 14px;
       text-align: left;
-      color: #666;
+      color: #555;
       font-weight: 500;
       background: #16161f;
       position: sticky;
       top: 0;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
     }
-    td { padding: 11px 16px; border-bottom: 1px solid #1e1e2a; }
+    th:hover { color: #aaa; }
+    th.sort-active { color: #fc3f1d; }
+    th .sort-arrow { font-size: 10px; margin-left: 3px; opacity: 0.7; }
+
+    td { padding: 10px 14px; border-bottom: 1px solid #1e1e2a; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #1e1e2c; }
 
-    .campaign-name {
-      font-weight: 500;
-      color: #ddd;
-      max-width: 300px;
-    }
-    .campaign-name-text {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      display: block;
-    }
+    /* CTR row coloring */
+    tr.row-ctr-low  td { background: #1e1212; }
+    tr.row-ctr-low:hover td { background: #251515; }
+    tr.row-ctr-high td { background: #121e12; }
+    tr.row-ctr-high:hover td { background: #152415; }
+
+    .campaign-name { font-weight: 500; color: #ddd; max-width: 260px; }
+    .campaign-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
     .campaign-id {
-      font-size: 11px;
-      color: #666;
-      cursor: pointer;
-      user-select: none;
-      display: inline-block;
-      margin-top: 2px;
+      font-size: 11px; color: #555; cursor: pointer;
+      user-select: none; display: inline-block; margin-top: 2px;
     }
     .campaign-id:hover { color: #fc3f1d; }
 
-    .num { color: #aaa; }
-    .num-high { color: #fc3f1d; font-weight: 600; }
+    .num     { color: #aaa; white-space: nowrap; }
+    .ctr-low  { color: #f08080 !important; font-weight: 600; }
+    .ctr-high { color: #4caf50 !important; font-weight: 600; }
 
-    .status-active { color: #4caf50; font-size: 11px; }
-    .status-suspended { color: #888; font-size: 11px; }
-    .status-other { color: #aaa; font-size: 11px; }
+    .trend-up   { color: #4caf50; font-size: 12px; }
+    .trend-down { color: #f08080; font-size: 12px; }
+    .trend-flat { color: #444;    font-size: 12px; }
 
-    .sidebar { display: flex; flex-direction: column; gap: 20px; }
+    .status-active    { color: #4caf50; font-size: 11px; }
+    .status-suspended { color: #888;    font-size: 11px; }
+    .status-ended     { color: #555;    font-size: 11px; }
+    .status-other     { color: #aaa;    font-size: 11px; }
 
-    .analysis-box { padding: 20px; min-height: 200px; }
-    .analysis-placeholder { color: #444; font-size: 14px; text-align: center; margin-top: 60px; }
-    .analysis-text { font-size: 14px; line-height: 1.7; color: #ccc; white-space: pre-wrap; }
+    /* ── Sidebar ── */
+    .sidebar { display: flex; flex-direction: column; gap: 16px; }
+
+    .analysis-box { padding: 18px; min-height: 160px; }
+    .analysis-placeholder { color: #444; font-size: 14px; text-align: center; margin-top: 50px; }
+    .analysis-text { font-size: 13px; line-height: 1.7; color: #ccc; white-space: pre-wrap; }
 
     .spinner {
-      display: none;
-      width: 20px; height: 20px;
-      border: 2px solid #2a2a3a;
-      border-top-color: #fc3f1d;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      display: none; width: 18px; height: 18px;
+      border: 2px solid #2a2a3a; border-top-color: #fc3f1d;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .history-list { padding: 0; }
-    .history-item {
-      padding: 14px 20px;
-      border-bottom: 1px solid #1e1e2a;
-      cursor: pointer;
-    }
+    .history-item { padding: 12px 20px; border-bottom: 1px solid #1e1e2a; cursor: pointer; }
     .history-item:last-child { border-bottom: none; }
     .history-item:hover { background: #1e1e2c; }
-    .history-date { font-size: 12px; color: #666; margin-bottom: 4px; }
-    .history-preview { font-size: 13px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-date { font-size: 12px; color: #555; margin-bottom: 3px; }
+    .history-preview { font-size: 12px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .error-banner {
-      background: #2a1a1a;
-      border: 1px solid #5a2a2a;
-      border-radius: 8px;
-      padding: 12px 16px;
-      color: #f08080;
-      font-size: 13px;
-      margin-bottom: 20px;
+      background: #2a1a1a; border: 1px solid #5a2a2a;
+      border-radius: 8px; padding: 12px 16px;
+      color: #f08080; font-size: 13px; margin-bottom: 20px;
     }
+    .empty { color: #444; padding: 20px; font-size: 13px; text-align: center; }
 
-    .empty { color: #555; padding: 20px; font-size: 13px; text-align: center; }
+    /* Question input row */
+    .question-row {
+      display: flex; gap: 8px; padding: 12px 16px;
+      border-top: 1px solid #2a2a3a;
+    }
+    .question-input {
+      flex: 1; background: #12121a; border: 1px solid #2a2a3a;
+      border-radius: 6px; padding: 8px 12px;
+      color: #e0e0e0; font-size: 13px; outline: none;
+    }
+    .question-input:focus { border-color: #fc3f1d; }
+    .question-hints {
+      padding: 0 16px 12px;
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .hint-chip {
+      font-size: 11px; color: #555; background: #16161f;
+      border: 1px solid #2a2a3a; border-radius: 12px;
+      padding: 3px 10px; cursor: pointer; transition: all 0.15s;
+    }
+    .hint-chip:hover { color: #fc3f1d; border-color: #fc3f1d; }
 
-    @media (max-width: 900px) {
-      .grid { grid-template-columns: 1fr; }
-      .container { padding: 16px; }
+    @media (max-width: 1000px) {
+      .grid        { grid-template-columns: 1fr; }
+      .charts-row  { grid-template-columns: 1fr; }
+      .container   { padding: 16px; }
     }
   </style>
 </head>
@@ -184,7 +291,23 @@
   <div class="error-banner">⚠️ Ошибка загрузки данных: {{ error }}</div>
   {% endif %}
 
+  <!-- Alerts -->
+  {% if alerts %}
+  <div class="alerts" id="alertsBox">
+    {% for a in alerts %}
+    <div class="alert alert-{{ a.type }}">
+      {% if a.type == 'red' %}🔴{% else %}🟠{% endif %}
+      {{ a.msg }}
+      <button class="alert-dismiss" onclick="this.parentElement.remove()">×</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Stats row -->
   {% if stats %}
+  {% set wc_change = ((this_week_cost - prev_week_cost) / prev_week_cost * 100) | round(0) | int if prev_week_cost > 0 else 0 %}
+  {% set wclk_change = ((this_week_clicks - prev_week_clicks) / prev_week_clicks * 100) | round(0) | int if prev_week_clicks > 0 else 0 %}
   <div class="stats-row">
     <div class="stat-card">
       <div class="stat-label">Кампании (30 дней)</div>
@@ -200,77 +323,107 @@
       <div class="stat-sub">CTR {{ stats.ctr }}%</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Расход</div>
+      <div class="stat-label">Расход (30 дней)</div>
       <div class="stat-value">{{ '{:,}'.format(stats.total_cost|int).replace(',', ' ') }} ₽</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">CPC средний</div>
+      <div class="stat-value">{{ stats.cpc }} ₽</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Эта неделя (7 дней)</div>
+      <div class="stat-value">{{ '{:,}'.format(this_week_cost|int).replace(',', ' ') }} ₽</div>
+      {% if prev_week_cost > 0 %}
+        {% if wc_change > 0 %}
+          <span class="stat-badge badge-up">↑ {{ wc_change }}% к прошлой</span>
+        {% elif wc_change < 0 %}
+          <span class="stat-badge badge-down">↓ {{ wc_change | abs }}% к прошлой</span>
+        {% else %}
+          <span class="stat-badge badge-flat">= прошлая неделя</span>
+        {% endif %}
+      {% endif %}
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Клики (7 дней)</div>
+      <div class="stat-value">{{ '{:,}'.format(this_week_clicks).replace(',', ' ') }}</div>
+      {% if prev_week_clicks > 0 %}
+        {% if wclk_change > 0 %}
+          <span class="stat-badge badge-up">↑ {{ wclk_change }}%</span>
+        {% elif wclk_change < 0 %}
+          <span class="stat-badge badge-down">↓ {{ wclk_change | abs }}%</span>
+        {% else %}
+          <span class="stat-badge badge-flat">= прошлая</span>
+        {% endif %}
+      {% endif %}
     </div>
   </div>
   {% endif %}
 
-  <div class="toolbar">
-    <button class="btn btn-secondary" id="btnRefresh" onclick="refreshData()">↻ Обновить данные</button>
-    <button class="btn btn-primary" id="btnAnalyze" onclick="analyzeData()">✦ Анализ Claude</button>
-    <div class="spinner" id="spinner"></div>
-    <span class="status" id="status"></span>
+  <!-- Charts -->
+  {% if chart_labels != '[]' %}
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Расход по дням, ₽</div>
+      <div class="chart-canvas-wrap"><canvas id="costChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Клики по дням</div>
+      <div class="chart-canvas-wrap"><canvas id="clicksChart"></canvas></div>
+    </div>
   </div>
-  <div class="toolbar" style="margin-top:-12px;margin-bottom:24px;">
-    <input type="text" id="customQuestion" placeholder="Задать вопрос Claude по статистике…"
-      style="flex:1;background:#1a1a24;border:1px solid #2a2a3a;border-radius:8px;padding:10px 14px;color:#e0e0e0;font-size:14px;outline:none;"
-      onkeydown="if(event.key==='Enter')askQuestion()"
-      onfocus="this.style.borderColor='#fc3f1d'" onblur="this.style.borderColor='#2a2a3a'">
-    <button class="btn btn-primary" onclick="askQuestion()">Спросить</button>
+  {% endif %}
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn btn-secondary" id="btnRefresh" onclick="refreshData()">↻ Обновить</button>
+    <button class="btn btn-primary"   id="btnAnalyze" onclick="analyzeData()">✦ Анализ Claude</button>
+    <div class="spinner" id="spinner"></div>
+    <span class="status-txt" id="statusTxt"></span>
+    <a href="/logout" style="margin-left:auto;font-size:12px;color:#444;text-decoration:none;">Выйти</a>
   </div>
 
+  <!-- Filters -->
+  <div class="filter-row">
+    <span class="filter-label">Статус:</span>
+    <div class="filter-group">
+      <button class="fbtn active" id="f-all"     onclick="setStatusFilter('all')">Все</button>
+      <button class="fbtn"        id="f-active"  onclick="setStatusFilter('active')">Активные</button>
+      <button class="fbtn"        id="f-paused"  onclick="setStatusFilter('paused')">Остановленные</button>
+    </div>
+    <span class="filter-sep">|</span>
+    <span class="filter-label">Мин. расход ₽:</span>
+    <input class="min-cost-input" id="minCostInput" type="number" min="0" placeholder="0"
+           oninput="setMinCost(this.value)">
+    <span class="sort-info" id="sortInfo"></span>
+  </div>
+
+  <!-- Main grid -->
   <div class="grid">
+    <!-- Table -->
     <div class="card">
-      <div class="card-header">Кампании · {{ campaigns|length }}</div>
-      <div style="overflow-x:auto;max-height:500px;overflow-y:auto;">
+      <div class="card-header">
+        Кампании
+        <span class="card-count" id="tableCount"></span>
+      </div>
+      <div style="overflow-x:auto;max-height:560px;overflow-y:auto;">
         <table>
           <thead>
             <tr>
-              <th>Название</th>
-              <th>Статус</th>
-              <th>👁 Показы</th>
-              <th>🖱 Клики</th>
-              <th>CTR</th>
-              <th>💰 Расход</th>
+              <th onclick="sortBy('name')"        id="th-name">Название <span class="sort-arrow"></span></th>
+              <th onclick="sortBy('state')"       id="th-state">Статус <span class="sort-arrow"></span></th>
+              <th onclick="sortBy('impressions')" id="th-impressions">👁 Показы <span class="sort-arrow"></span></th>
+              <th onclick="sortBy('clicks')"      id="th-clicks">🖱 Клики <span class="sort-arrow"></span></th>
+              <th onclick="sortBy('ctr')"         id="th-ctr">CTR <span class="sort-arrow"></span></th>
+              <th onclick="sortBy('cost')"        id="th-cost">💰 Расход <span class="sort-arrow"></span></th>
+              <th onclick="sortBy('cpc')"         id="th-cpc">CPC <span class="sort-arrow"></span></th>
             </tr>
           </thead>
-          <tbody>
-            {% for c in campaigns %}
-            {% set s = campaign_stats.get(c.Id, {}) %}
-            <tr>
-              <td class="campaign-name" title="{{ c.Name }}">
-                <span class="campaign-name-text">{{ c.Name }}</span>
-                <span class="campaign-id" onclick="copyId({{ c.Id }}, this)" title="Нажми чтобы скопировать">ID {{ c.Id }}</span>
-              </td>
-              <td>
-                {% set state = c.get('State', '') %}
-                {% set status = c.get('Status', '') %}
-                {% if state == 'ON' or (not state and status == 'ACCEPTED') %}
-                  <span class="status-active">● Активна</span>
-                {% elif state in ('SUSPENDED', 'OFF', 'OFF_BY_MONITORING') %}
-                  <span class="status-suspended">● Остановлена</span>
-                {% elif state in ('ENDED', 'ARCHIVED', 'CONVERTED') %}
-                  <span class="status-other">● Завершена</span>
-                {% elif status == 'MODERATION' %}
-                  <span class="status-other">● Модерация</span>
-                {% else %}
-                  <span class="status-other">{{ state or status or "—" }}</span>
-                {% endif %}
-              </td>
-              <td class="num">{{ '{:,}'.format(s.get('impressions', 0)).replace(',', ' ') }}</td>
-              <td class="{% if s.get('clicks', 0) > 100 %}num-high{% else %}num{% endif %}">{{ s.get('clicks', 0) }}</td>
-              <td class="num">{{ s.get('ctr', 0) }}%</td>
-              <td class="num">{{ s.get('cost', 0) }} ₽</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="6" class="empty">Нет данных</td></tr>
-            {% endfor %}
-          </tbody>
+          <tbody id="campaignTbody"></tbody>
         </table>
       </div>
     </div>
 
+    <!-- Sidebar -->
     <div class="sidebar">
       <div class="card">
         <div class="card-header">✦ Анализ и рекомендации</div>
@@ -281,6 +434,20 @@
           <div id="analysisTitle" style="display:none;font-size:12px;color:#fc3f1d;font-weight:600;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
           <div class="analysis-text" id="analysisText" style="display:none"></div>
         </div>
+        <div class="question-hints">
+          <span class="hint-chip" onclick="useHint(this)">Какая кампания самая неэффективная?</span>
+          <span class="hint-chip" onclick="useHint(this)">На что я трачу деньги впустую?</span>
+          <span class="hint-chip" onclick="useHint(this)">Что приостановить прямо сейчас?</span>
+          <span class="hint-chip" onclick="useHint(this)">Где лучший CTR и почему?</span>
+        </div>
+        <div class="question-row">
+          <input class="question-input" id="customQuestion"
+                 placeholder="Задать вопрос Claude…"
+                 onkeydown="if(event.key==='Enter')askQuestion()"
+                 onfocus="this.style.borderColor='#fc3f1d'"
+                 onblur="this.style.borderColor='#2a2a3a'">
+          <button class="btn btn-primary" style="padding:8px 14px;font-size:13px;" onclick="askQuestion()">→</button>
+        </div>
       </div>
 
       {% if history %}
@@ -289,7 +456,7 @@
         <div class="history-list">
           {% for h in history|reverse %}
           <div class="history-item" onclick="showHistory({{ h.analysis | tojson }}, {{ (h.get('title') or '') | tojson }}, {{ 'true' if h.get('is_question') else 'false' }})">
-            <div class="history-date">{{ h.date }}{% if h.get('is_question') %} &nbsp;·&nbsp; <span style="color:#fc3f1d">вопрос</span>{% endif %}</div>
+            <div class="history-date">{{ h.date }}{% if h.get('is_question') %} · <span style="color:#fc3f1d">вопрос</span>{% endif %}</div>
             <div class="history-preview">{% if h.get('is_question') %}💬 {% endif %}{{ h.get('title') or h.analysis[:80] }}</div>
           </div>
           {% endfor %}
@@ -298,9 +465,130 @@
       {% endif %}
     </div>
   </div>
+
 </div>
 
 <script>
+  // ── Data from server ──
+  const CAMPAIGNS = {{ campaigns_json | safe }};
+  const CHART_LABELS = {{ chart_labels | safe }};
+  const CHART_COSTS  = {{ chart_costs  | safe }};
+  const CHART_CLICKS = {{ chart_clicks | safe }};
+
+  // ── Table state ──
+  let sortCol = 'cost';
+  let sortAsc  = false;
+  let filterStatus  = 'all';
+  let filterMinCost = 0;
+
+  // ── Helpers ──
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function fmtNum(n) {
+    return Number(n).toLocaleString('ru-RU');
+  }
+
+  function campaignStatusInfo(c) {
+    const s = c.state, st = c.status;
+    if (s === 'ON' || (!s && st === 'ACCEPTED')) return {label: 'Активна',      cls: 'active'};
+    if (['SUSPENDED','OFF','OFF_BY_MONITORING'].includes(s))  return {label: 'Остановлена', cls: 'suspended'};
+    if (['ENDED','ARCHIVED','CONVERTED'].includes(s))         return {label: 'Завершена',   cls: 'ended'};
+    return {label: s || st || '—', cls: 'other'};
+  }
+
+  function trendHtml(trend, pct) {
+    if (trend === 'up')   return `<span class="trend-up">↑${pct ? pct + '%' : ''}</span>`;
+    if (trend === 'down') return `<span class="trend-down">↓${pct ? pct + '%' : ''}</span>`;
+    return '';
+  }
+
+  // ── Filtering & sorting ──
+  function getSortedFiltered() {
+    let data = CAMPAIGNS.filter(c => {
+      if (filterStatus === 'active')
+        return c.state === 'ON' || (!c.state && c.status === 'ACCEPTED');
+      if (filterStatus === 'paused')
+        return ['SUSPENDED','OFF','OFF_BY_MONITORING'].includes(c.state);
+      return true;
+    }).filter(c => c.cost >= filterMinCost);
+
+    data.sort((a, b) => {
+      let av = a[sortCol], bv = b[sortCol];
+      if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      if (av < bv) return sortAsc ? -1 :  1;
+      if (av > bv) return sortAsc ?  1 : -1;
+      return 0;
+    });
+    return data;
+  }
+
+  function renderTable() {
+    const data = getSortedFiltered();
+    const tbody = document.getElementById('campaignTbody');
+    document.getElementById('tableCount').textContent = `· ${data.length} из ${CAMPAIGNS.length}`;
+
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">Нет кампаний по фильтру</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(c => {
+      const si   = campaignStatusInfo(c);
+      const rCls = c.ctr_class === 'low' ? 'row-ctr-low' : (c.ctr_class === 'high' ? 'row-ctr-high' : '');
+      const ctrCls = c.ctr_class === 'low' ? 'num ctr-low' : (c.ctr_class === 'high' ? 'num ctr-high' : 'num');
+      return `<tr class="${rCls}">
+        <td class="campaign-name" title="${escHtml(c.name)}">
+          <span class="campaign-name-text">${escHtml(c.name)}</span>
+          <span class="campaign-id" onclick="copyId(${c.id},this)">ID ${c.id}</span>
+        </td>
+        <td><span class="status-${si.cls}">● ${si.label}</span></td>
+        <td class="num">${fmtNum(c.impressions)}</td>
+        <td class="num">${fmtNum(c.clicks)}</td>
+        <td class="${ctrCls}">${c.ctr}% ${trendHtml(c.ctr_trend, 0)}</td>
+        <td class="num">${fmtNum(Math.round(c.cost))} ₽ ${trendHtml(c.cost_trend, c.cost_trend_pct)}</td>
+        <td class="num">${c.cpc > 0 ? c.cpc + ' ₽' : '—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function updateSortHeaders() {
+    const cols = ['name','state','impressions','clicks','ctr','cost','cpc'];
+    cols.forEach(col => {
+      const th = document.getElementById('th-' + col);
+      if (!th) return;
+      th.classList.toggle('sort-active', col === sortCol);
+      th.querySelector('.sort-arrow').textContent =
+        col === sortCol ? (sortAsc ? ' ▲' : ' ▼') : '';
+    });
+    document.getElementById('sortInfo').textContent =
+      `Сортировка: ${sortCol} ${sortAsc ? '↑' : '↓'}`;
+  }
+
+  function sortBy(col) {
+    sortAsc = (sortCol === col) ? !sortAsc : false;
+    sortCol = col;
+    renderTable();
+    updateSortHeaders();
+  }
+
+  function setStatusFilter(val) {
+    filterStatus = val;
+    ['all','active','paused'].forEach(v => {
+      document.getElementById('f-' + v).classList.toggle('active', v === val);
+    });
+    renderTable();
+  }
+
+  function setMinCost(val) {
+    filterMinCost = parseFloat(val) || 0;
+    renderTable();
+  }
+
+  // ── UI helpers ──
   function setLoading(on) {
     document.getElementById('spinner').style.display = on ? 'block' : 'none';
     document.getElementById('btnAnalyze').disabled = on;
@@ -308,7 +596,7 @@
   }
 
   function setStatus(msg) {
-    document.getElementById('status').textContent = msg;
+    document.getElementById('statusTxt').textContent = msg;
   }
 
   function showAnalysis(text, title, isQuestion) {
@@ -334,9 +622,15 @@
 
   function showHistory(text, title, isQuestion) {
     showAnalysis(text, title, isQuestion);
-    document.getElementById('analysisBox').scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('analysisBox').scrollIntoView({behavior: 'smooth'});
   }
 
+  function useHint(el) {
+    document.getElementById('customQuestion').value = el.textContent;
+    askQuestion();
+  }
+
+  // ── API calls ──
   async function refreshData() {
     setLoading(true);
     setStatus('Загружаем данные из Яндекс.Директ…');
@@ -344,12 +638,12 @@
       const r = await fetch('/api/refresh');
       const data = await r.json();
       if (data.ok) {
-        setStatus('Данные обновлены — перезагружаем страницу…');
+        setStatus('Данные обновлены — перезагружаем…');
         setTimeout(() => location.reload(), 800);
       } else {
         setStatus('Ошибка: ' + data.error);
       }
-    } catch (e) {
+    } catch {
       setStatus('Сетевая ошибка');
     } finally {
       setLoading(false);
@@ -363,16 +657,16 @@
       const r = await fetch('/api/analyze', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({question})
+        body: JSON.stringify({question}),
       });
       const data = await r.json();
       if (data.ok) {
         showAnalysis(data.analysis, data.title, data.is_question);
-        setStatus('Готово');
+        setStatus('');
       } else {
         setStatus('Ошибка: ' + data.error);
       }
-    } catch (e) {
+    } catch {
       setStatus('Сетевая ошибка');
     } finally {
       setLoading(false);
@@ -382,8 +676,79 @@
   function askQuestion() {
     const q = document.getElementById('customQuestion').value.trim();
     if (!q) return;
+    document.getElementById('customQuestion').value = '';
     analyzeData(q);
   }
+
+  // ── Charts ──
+  function initCharts() {
+    if (!CHART_LABELS.length) return;
+
+    Chart.defaults.color = '#555';
+    Chart.defaults.borderColor = '#1e1e2a';
+    Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    Chart.defaults.font.size = 11;
+
+    const commonScales = {
+      x: {
+        grid: {color: '#1a1a24'},
+        ticks: {maxTicksLimit: 10, callback: (_, i) => CHART_LABELS[i] ? CHART_LABELS[i].slice(5) : ''},
+      },
+      y: {grid: {color: '#1a1a24'}, beginAtZero: true},
+    };
+
+    new Chart(document.getElementById('costChart'), {
+      type: 'bar',
+      data: {
+        labels: CHART_LABELS,
+        datasets: [{
+          data: CHART_COSTS,
+          backgroundColor: 'rgba(252,63,29,0.55)',
+          borderColor: 'rgba(252,63,29,0.9)',
+          borderWidth: 1,
+          borderRadius: 2,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: {display: false},
+          tooltip: {callbacks: {label: ctx => ' ' + ctx.raw.toLocaleString('ru-RU') + ' ₽'}},
+        },
+        scales: commonScales,
+      },
+    });
+
+    new Chart(document.getElementById('clicksChart'), {
+      type: 'line',
+      data: {
+        labels: CHART_LABELS,
+        datasets: [{
+          data: CHART_CLICKS,
+          borderColor: '#4a9eff',
+          backgroundColor: 'rgba(74,158,255,0.08)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: {display: false},
+          tooltip: {callbacks: {label: ctx => ' ' + ctx.raw.toLocaleString('ru-RU') + ' кл.'}},
+        },
+        scales: commonScales,
+      },
+    });
+  }
+
+  // ── Init ──
+  renderTable();
+  updateSortHeaders();
+  initCharts();
 </script>
 
 </body>

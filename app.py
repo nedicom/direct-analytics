@@ -21,7 +21,7 @@ HISTORY_FILE = "history.json"
 
 SYSTEM_PROMPT = """Ты опытный аналитик рекламы в Яндекс.Директ. Помогаешь принимать решения на основе данных: какие кампании эффективны, где тратится бюджет впустую, как снизить стоимость клика и увеличить конверсии.
 
-Стиль ответа: конкретно, с цифрами из данных, без воды. Сначала коротко — что работает, потом — 3-5 чётких рекомендаций с обоснованием."""
+Стиль ответа: конкретно, с цифрами из данных, без воды. Называй конкретные кампании по имени. Сначала коротко — что работает, потом — 3-5 чётких рекомендаций с обоснованием и конкретными цифрами."""
 
 
 def login_required(f):
@@ -72,8 +72,84 @@ def calc_stats(campaigns: list, stats: dict) -> dict:
         "total_clicks": total_clicks,
         "total_cost": round(total_cost, 2),
         "ctr": round(total_clicks / total_impressions * 100, 2) if total_impressions else 0,
+        "cpc": round(total_cost / total_clicks, 2) if total_clicks else 0,
         "count": len(campaigns),
     }
+
+
+def _enrich_stats(campaign_stats: dict) -> None:
+    """Add cpc, ctr_class, cost_trend, ctr_trend to each campaign entry in-place."""
+    for s in campaign_stats.values():
+        s["cpc"] = round(s["cost"] / s["clicks"], 2) if s["clicks"] else 0
+
+        ctr = s["ctr"]
+        if s["impressions"] > 100 and ctr < 1.0:
+            s["ctr_class"] = "low"
+        elif ctr > 5.0:
+            s["ctr_class"] = "high"
+        else:
+            s["ctr_class"] = "mid"
+
+        last = s["last7d_cost"]
+        prev = s["prev7d_cost"]
+        if prev == 0 and last == 0:
+            s["cost_trend"] = "flat"
+            s["cost_trend_pct"] = 0
+        elif prev == 0:
+            s["cost_trend"] = "up"
+            s["cost_trend_pct"] = 100
+        else:
+            change = (last - prev) / prev * 100
+            s["cost_trend"] = "up" if change > 10 else ("down" if change < -10 else "flat")
+            s["cost_trend_pct"] = round(abs(change))
+
+        last7d_ctr = (
+            round(s["last7d_clicks"] / s["last7d_impressions"] * 100, 2)
+            if s["last7d_impressions"] else 0
+        )
+        prev7d_ctr = (
+            round(s["prev7d_clicks"] / s["prev7d_impressions"] * 100, 2)
+            if s["prev7d_impressions"] else 0
+        )
+        s["last7d_ctr"] = last7d_ctr
+        s["prev7d_ctr"] = prev7d_ctr
+        if last7d_ctr > prev7d_ctr + 0.1:
+            s["ctr_trend"] = "up"
+        elif last7d_ctr < prev7d_ctr - 0.1:
+            s["ctr_trend"] = "down"
+        else:
+            s["ctr_trend"] = "flat"
+
+
+def _build_alerts(campaigns: list, campaign_stats: dict) -> list[dict]:
+    alerts = []
+    for c in campaigns:
+        s = campaign_stats.get(c["Id"], {})
+        state = c.get("State", "")
+        name = c["Name"]
+
+        if state == "ON" and s.get("impressions", 0) == 0:
+            alerts.append({"type": "red", "msg": f"Кампания «{name}» активна, но нет показов за 30 дней"})
+
+        ctr = s.get("ctr", 0)
+        impr = s.get("impressions", 0)
+        if impr > 1000 and ctr < 0.5:
+            alerts.append({"type": "red", "msg": f"Кампания «{name}» — CTR {ctr}% (критически низкий)"})
+        elif impr > 1000 and ctr < 1.0:
+            alerts.append({"type": "orange", "msg": f"Кампания «{name}» — CTR {ctr}% (ниже нормы)"})
+
+        if s.get("cost_trend") == "up" and s.get("cost_trend_pct", 0) >= 100:
+            alerts.append({"type": "orange", "msg": f"Кампания «{name}» — расход вырос в 2+ раза за последние 7 дней"})
+
+        prev7d_ctr = s.get("prev7d_ctr", 0)
+        last7d_ctr = s.get("last7d_ctr", 0)
+        if state == "ON" and prev7d_ctr > 0 and (prev7d_ctr - last7d_ctr) / prev7d_ctr > 0.3:
+            alerts.append({
+                "type": "orange",
+                "msg": f"Кампания «{name}» — CTR упал с {prev7d_ctr}% до {last7d_ctr}% за последние 7 дней",
+            })
+
+    return alerts
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -98,9 +174,10 @@ def logout():
 def index():
     campaigns = []
     campaign_stats = {}
+    daily_stats = {}
     error = None
     try:
-        campaign_stats = get_campaign_stats(DIRECT_TOKEN, [])
+        campaign_stats, daily_stats = get_campaign_stats(DIRECT_TOKEN, [])
         api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
         for cid, s in campaign_stats.items():
             meta = api_by_id.get(cid, {})
@@ -113,15 +190,60 @@ def index():
             })
     except Exception as e:
         error = str(e)
+
     campaigns.sort(key=lambda c: -campaign_stats.get(c["Id"], {}).get("cost", 0))
+    _enrich_stats(campaign_stats)
+    alerts = _build_alerts(campaigns, campaign_stats)
+
+    sorted_days = sorted(daily_stats.items())
+    chart_labels = [d for d, _ in sorted_days]
+    chart_costs = [v["cost"] for _, v in sorted_days]
+    chart_clicks = [v["clicks"] for _, v in sorted_days]
+
+    this_week_cost = round(sum(v["cost"] for _, v in sorted_days[-7:]), 2) if sorted_days else 0
+    prev_week_cost = round(sum(v["cost"] for _, v in sorted_days[-14:-7]), 2) if len(sorted_days) >= 8 else 0
+    this_week_clicks = sum(v["clicks"] for _, v in sorted_days[-7:]) if sorted_days else 0
+    prev_week_clicks = sum(v["clicks"] for _, v in sorted_days[-14:-7]) if len(sorted_days) >= 8 else 0
+
+    campaigns_js = []
+    for c in campaigns:
+        s = campaign_stats.get(c["Id"], {})
+        campaigns_js.append({
+            "id": c["Id"],
+            "name": c["Name"],
+            "state": c.get("State", ""),
+            "status": c.get("Status", ""),
+            "impressions": s.get("impressions", 0),
+            "clicks": s.get("clicks", 0),
+            "ctr": s.get("ctr", 0),
+            "ctr_class": s.get("ctr_class", "mid"),
+            "cost": s.get("cost", 0),
+            "cpc": s.get("cpc", 0),
+            "cost_trend": s.get("cost_trend", "flat"),
+            "cost_trend_pct": s.get("cost_trend_pct", 0),
+            "ctr_trend": s.get("ctr_trend", "flat"),
+        })
+
     stats = calc_stats(campaigns, campaign_stats)
     history = load_history()
-    return render_template("index.html",
-                           campaigns=campaigns,
-                           campaign_stats=campaign_stats,
-                           stats=stats,
-                           history=history,
-                           error=error)
+
+    return render_template(
+        "index.html",
+        campaigns=campaigns,
+        campaign_stats=campaign_stats,
+        stats=stats,
+        history=history,
+        error=error,
+        alerts=alerts,
+        campaigns_json=json.dumps(campaigns_js, ensure_ascii=False),
+        chart_labels=json.dumps(chart_labels),
+        chart_costs=json.dumps(chart_costs),
+        chart_clicks=json.dumps(chart_clicks),
+        this_week_cost=this_week_cost,
+        prev_week_cost=prev_week_cost,
+        this_week_clicks=this_week_clicks,
+        prev_week_clicks=prev_week_clicks,
+    )
 
 
 @app.route("/api/debug-campaigns")
@@ -129,7 +251,7 @@ def index():
 def debug_campaigns():
     from direct_client import get_campaigns, get_campaigns_by_ids, get_campaign_stats
     campaigns = get_campaigns(DIRECT_TOKEN)
-    stats = get_campaign_stats(DIRECT_TOKEN, [])
+    stats, _ = get_campaign_stats(DIRECT_TOKEN, [])
     known_ids = {c["Id"] for c in campaigns}
     missing = [cid for cid in stats if cid not in known_ids]
     by_ids = get_campaigns_by_ids(DIRECT_TOKEN, missing) if missing else []
@@ -192,10 +314,8 @@ def debug_stats():
 @login_required
 def refresh():
     try:
-        campaigns = get_campaigns(DIRECT_TOKEN)
-        ids = [c["Id"] for c in campaigns]
-        campaign_stats = get_campaign_stats(DIRECT_TOKEN, ids)
-        return jsonify({"ok": True, "count": len(campaigns)})
+        campaign_stats, _ = get_campaign_stats(DIRECT_TOKEN, [])
+        return jsonify({"ok": True, "count": len(campaign_stats)})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -207,7 +327,8 @@ def analyze():
         return jsonify({"ok": False, "error": "API ключ Claude не настроен"}), 503
 
     try:
-        campaign_stats = get_campaign_stats(DIRECT_TOKEN, [])
+        campaign_stats, _ = get_campaign_stats(DIRECT_TOKEN, [])
+        _enrich_stats(campaign_stats)
         api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
         campaigns = []
         for cid, s in campaign_stats.items():
@@ -215,12 +336,14 @@ def analyze():
             campaigns.append({
                 "Id": cid,
                 "Name": s["name"],
-                "Status": meta.get("Status", ""),
                 "State": meta.get("State", ""),
+                "Status": meta.get("Status", ""),
+                "stats": s,
             })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+    campaigns.sort(key=lambda c: -c["stats"].get("cost", 0))
     question = (request.json or {}).get("question", "").strip()
 
     past = load_history()
@@ -229,22 +352,42 @@ def analyze():
         last = past[-1]
         past_context = f"\n\nПрошлый анализ ({last['date']}):\n{last['analysis'][:800]}\n"
 
+    def state_label(c):
+        state = c.get("State", "")
+        status = c.get("Status", "")
+        if state == "ON" or (not state and status == "ACCEPTED"):
+            return "Активна"
+        if state in ("SUSPENDED", "OFF", "OFF_BY_MONITORING"):
+            return "Остановлена"
+        if state in ("ENDED", "ARCHIVED", "CONVERTED"):
+            return "Завершена"
+        return state or status or "?"
+
     campaigns_text = "\n".join([
-        f"• «{c['Name']}» | {c.get('Status', '')} "
-        f"| 👁 {campaign_stats.get(c['Id'], {}).get('impressions', 0)} "
-        f"| 🖱 {campaign_stats.get(c['Id'], {}).get('clicks', 0)} "
-        f"| CTR {campaign_stats.get(c['Id'], {}).get('ctr', 0)}% "
-        f"| 💰 {campaign_stats.get(c['Id'], {}).get('cost', 0)} ₽"
+        f"• «{c['Name']}» ({state_label(c)}) | "
+        f"Показы: {c['stats']['impressions']:,} | "
+        f"Клики: {c['stats']['clicks']} | "
+        f"CTR: {c['stats']['ctr']}% | "
+        f"Расход: {c['stats']['cost']:,.0f} ₽ | "
+        f"CPC: {c['stats']['cpc']} ₽ | "
+        f"Тренд расхода 7д: {'↑' if c['stats']['cost_trend'] == 'up' else ('↓' if c['stats']['cost_trend'] == 'down' else '→')} "
+        f"({c['stats'].get('cost_trend_pct', 0)}%)"
         for c in campaigns
     ])
 
     if question:
-        user_message = f"Данные кампаний Яндекс.Директ:{past_context}\n\n{campaigns_text}\n\nВопрос: {question}"
+        user_message = (
+            f"Данные кампаний Яндекс.Директ за 30 дней:{past_context}\n\n"
+            f"{campaigns_text}\n\n"
+            f"Вопрос пользователя: {question}"
+        )
     else:
         user_message = (
-            f"Статистика кампаний Яндекс.Директ за последние 30 дней:{past_context}\n\n{campaigns_text}\n\n"
+            f"Статистика кампаний Яндекс.Директ за последние 30 дней:{past_context}\n\n"
+            f"{campaigns_text}\n\n"
             "Проанализируй результаты. Какие кампании работают лучше всего? "
-            "Где тратится бюджет неэффективно? Дай конкретные рекомендации."
+            "Где тратится бюджет неэффективно? Назови конкретные кампании с цифрами. "
+            "Дай 3-5 конкретных рекомендаций: что приостановить, что улучшить, на что увеличить бюджет."
         )
 
     import anthropic
