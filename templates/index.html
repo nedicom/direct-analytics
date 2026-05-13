@@ -310,7 +310,7 @@
   {% set wclk_change = ((this_week_clicks - prev_week_clicks) / prev_week_clicks * 100) | round(0) | int if prev_week_clicks > 0 else 0 %}
   <div class="stats-row">
     <div class="stat-card">
-      <div class="stat-label">Кампании (30 дней)</div>
+      <div class="stat-label">Кампании ({{ days }} дней)</div>
       <div class="stat-value">{{ stats.count }}</div>
     </div>
     <div class="stat-card">
@@ -323,7 +323,7 @@
       <div class="stat-sub">CTR {{ stats.ctr }}%</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Расход (30 дней)</div>
+      <div class="stat-label">Расход ({{ days }} дней)</div>
       <div class="stat-value">{{ '{:,}'.format(stats.total_cost|int).replace(',', ' ') }} ₽</div>
     </div>
     <div class="stat-card">
@@ -384,6 +384,13 @@
 
   <!-- Filters -->
   <div class="filter-row">
+    <span class="filter-label">Период:</span>
+    <div class="filter-group">
+      <a href="?days=30"  class="fbtn {% if days == 30 %}active{% endif %}">30 дней</a>
+      <a href="?days=90"  class="fbtn {% if days == 90 %}active{% endif %}">90 дней</a>
+      <a href="?days=365" class="fbtn {% if days == 365 %}active{% endif %}">Год</a>
+    </div>
+    <span class="filter-sep">|</span>
     <span class="filter-label">Статус:</span>
     <div class="filter-group">
       <button class="fbtn active" id="f-all"     onclick="setStatusFilter('all')">Все</button>

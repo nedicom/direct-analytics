@@ -202,8 +202,9 @@ def index():
     campaign_stats = {}
     daily_stats = {}
     error = None
+    days = min(int(request.args.get("days", 30)), 365)
     try:
-        campaign_stats, daily_stats = get_campaign_stats(DIRECT_TOKEN, [])
+        campaign_stats, daily_stats = get_campaign_stats(DIRECT_TOKEN, [], days=days)
         api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
         missing_ids = [cid for cid in campaign_stats if cid not in api_by_id]
         if missing_ids:
@@ -268,6 +269,7 @@ def index():
         history=history,
         error=error,
         alerts=alerts,
+        days=days,
         campaigns_json=json.dumps(campaigns_js, ensure_ascii=False),
         chart_labels=json.dumps(chart_labels),
         chart_costs=json.dumps(chart_costs),
