@@ -518,13 +518,10 @@
 
   // ── Filtering & sorting ──
   function getSortedFiltered() {
+    const INACTIVE_STATES = ['SUSPENDED','OFF','OFF_BY_MONITORING','ENDED','ARCHIVED','CONVERTED'];
     let data = CAMPAIGNS.filter(c => {
-      if (filterStatus === 'active') {
-        if (c.state) return c.state === 'ON';
-        return c.status === 'ACCEPTED';  // fallback when state not available
-      }
-      if (filterStatus === 'paused')
-        return ['SUSPENDED','OFF','OFF_BY_MONITORING'].includes(c.state);
+      if (filterStatus === 'active')  return !INACTIVE_STATES.includes(c.state);
+      if (filterStatus === 'paused')  return INACTIVE_STATES.includes(c.state);
       return true;
     }).filter(c => c.cost >= filterMinCost);
 
