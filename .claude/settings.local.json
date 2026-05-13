@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(ssh root@178.208.94.106 \"cd /home/forge/direct.nedicom.ru && git log --oneline -3\")"
+    ]
+  }
+}
