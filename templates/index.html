@@ -505,9 +505,8 @@
     if (s === 'ON')  return {label: 'Активна',      cls: 'active'};
     if (['SUSPENDED','OFF','OFF_BY_MONITORING'].includes(s)) return {label: 'Остановлена', cls: 'suspended'};
     if (['ENDED','ARCHIVED','CONVERTED'].includes(s))        return {label: 'Завершена',   cls: 'ended'};
-    // fallback for campaigns with no state (not in campaigns API response)
     if (c.status === 'ACCEPTED') return {label: 'Активна', cls: 'active'};
-    return {label: s || c.status || '—', cls: 'other'};
+    return {label: 'Активна', cls: 'active'};
   }
 
   function trendHtml(trend, pct) {
