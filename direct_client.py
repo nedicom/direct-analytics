@@ -107,10 +107,17 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> t
                     "impressions": 0, "clicks": 0, "cost": 0.0, "ctr": 0.0,
                     "last7d_cost": 0.0, "last7d_clicks": 0, "last7d_impressions": 0,
                     "prev7d_cost": 0.0, "prev7d_clicks": 0, "prev7d_impressions": 0,
+                    "daily": {},
                 }
             result[cid]["impressions"] += impressions
             result[cid]["clicks"] += clicks
             result[cid]["cost"] += cost
+
+            if date not in result[cid]["daily"]:
+                result[cid]["daily"][date] = {"impressions": 0, "clicks": 0, "cost": 0.0}
+            result[cid]["daily"][date]["impressions"] += impressions
+            result[cid]["daily"][date]["clicks"] += clicks
+            result[cid]["daily"][date]["cost"] += cost
 
             if date >= seven_days_ago:
                 result[cid]["last7d_cost"] += cost

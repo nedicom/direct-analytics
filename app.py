@@ -33,11 +33,18 @@ def login_required(f):
     return decorated
 
 
-def load_history() -> list:
+def _load_all_history() -> list:
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE, encoding="utf-8") as f:
             return json.load(f)
     return []
+
+
+def load_history(campaign_id=None) -> list:
+    all_h = _load_all_history()
+    if campaign_id is None:
+        return [h for h in all_h if not h.get("campaign_id")]
+    return [h for h in all_h if h.get("campaign_id") == campaign_id]
 
 
 def _extract_title(analysis: str) -> str:
@@ -48,17 +55,18 @@ def _extract_title(analysis: str) -> str:
     return "Анализ"
 
 
-def save_to_history(analysis: str, question: str = ""):
-    history = load_history()
+def save_to_history(analysis: str, question: str = "", campaign_id=None):
+    all_h = _load_all_history()
     title = question.strip() if question.strip() else _extract_title(analysis)
-    history.append({
+    all_h.append({
         "date": datetime.now().strftime("%d.%m.%Y %H:%M"),
         "analysis": analysis,
         "title": title,
         "is_question": bool(question.strip()),
+        "campaign_id": campaign_id,
     })
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+        json.dump(all_h, f, ensure_ascii=False, indent=2)
 
 
 def calc_stats(campaigns: list, stats: dict) -> dict:
@@ -477,6 +485,154 @@ def analyze():
     analysis = response.content[0].text
     title = question.strip() if question.strip() else _extract_title(analysis)
     save_to_history(analysis, question)
+    return jsonify({"ok": True, "analysis": analysis, "title": title, "is_question": bool(question.strip())})
+
+
+_CAMPAIGN_TYPE_LABELS = {
+    "UNIFIED_CAMPAIGN": "Мастер кампания",
+    "SMART_CAMPAIGN": "Смарт кампания",
+    "TEXT_CAMPAIGN": "Текстовая",
+    "DYNAMIC_TEXT_CAMPAIGN": "Динамическая",
+    "MOBILE_APP_CAMPAIGN": "Мобильная",
+    "MCBANNER_CAMPAIGN": "Медийная",
+    "CPM_BANNER_CAMPAIGN": "CPM",
+}
+
+
+@app.route("/campaign/<int:campaign_id>")
+@login_required
+def campaign_detail(campaign_id):
+    error = None
+    campaign_meta = {}
+    totals = {}
+    daily_stats = {}
+
+    try:
+        campaign_stats, _ = get_campaign_stats(DIRECT_TOKEN, [])
+        api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
+        missing_ids = [cid for cid in campaign_stats if cid not in api_by_id]
+        if missing_ids:
+            for c in get_campaigns_by_ids(DIRECT_TOKEN, missing_ids):
+                api_by_id[c["Id"]] = c
+        campaign_meta = api_by_id.get(campaign_id, {})
+        totals = campaign_stats.get(campaign_id, {})
+        daily_stats = totals.pop("daily", {})
+        if totals:
+            _enrich_stats({campaign_id: totals})
+    except Exception as e:
+        error = str(e)
+
+    sorted_days = sorted(daily_stats.items())
+    chart_labels = [d for d, _ in sorted_days]
+    chart_costs = [round(v["cost"], 2) for _, v in sorted_days]
+    chart_clicks = [v["clicks"] for _, v in sorted_days]
+
+    this_week_cost = round(sum(v["cost"] for _, v in sorted_days[-7:]), 2) if sorted_days else 0
+    prev_week_cost = round(sum(v["cost"] for _, v in sorted_days[-14:-7]), 2) if len(sorted_days) >= 8 else 0
+
+    ctype = campaign_meta.get("Type", "")
+    state = campaign_meta.get("State", "")
+    campaign_name = totals.get("name") or campaign_meta.get("Name", f"Кампания {campaign_id}")
+
+    history = load_history(campaign_id=campaign_id)
+
+    return render_template(
+        "campaign.html",
+        campaign_id=campaign_id,
+        campaign_name=campaign_name,
+        campaign_meta=campaign_meta,
+        campaign_type=ctype,
+        campaign_type_label=_CAMPAIGN_TYPE_LABELS.get(ctype, ctype),
+        state=state,
+        totals=totals,
+        history=history,
+        error=error,
+        chart_labels=json.dumps(chart_labels),
+        chart_costs=json.dumps(chart_costs),
+        chart_clicks=json.dumps(chart_clicks),
+        this_week_cost=this_week_cost,
+        prev_week_cost=prev_week_cost,
+    )
+
+
+@app.route("/api/analyze/<int:campaign_id>", methods=["POST"])
+@login_required
+def analyze_campaign(campaign_id):
+    if not ANTHROPIC_API_KEY:
+        return jsonify({"ok": False, "error": "API ключ Claude не настроен"}), 503
+
+    try:
+        campaign_stats, _ = get_campaign_stats(DIRECT_TOKEN, [])
+        _enrich_stats(campaign_stats)
+        api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
+        missing_ids = [cid for cid in campaign_stats if cid not in api_by_id]
+        if missing_ids:
+            for c in get_campaigns_by_ids(DIRECT_TOKEN, missing_ids):
+                api_by_id[c["Id"]] = c
+        campaign_meta = api_by_id.get(campaign_id, {})
+        s = campaign_stats.get(campaign_id, {})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    question = (request.json or {}).get("question", "").strip()
+
+    past = load_history(campaign_id=campaign_id)
+    past_context = ""
+    if past:
+        last = past[-1]
+        past_context = f"\n\nПредыдущий анализ этой кампании ({last['date']}):\n{last['analysis'][:600]}\n"
+
+    ctype = campaign_meta.get("Type", "")
+    state = campaign_meta.get("State", "")
+    name = s.get("name") or campaign_meta.get("Name", f"Кампания {campaign_id}")
+
+    state_str = {"ON": "Активна", "SUSPENDED": "Остановлена", "OFF": "Остановлена",
+                 "ENDED": "Завершена", "ARCHIVED": "В архиве"}.get(state, state or "неизвестен")
+
+    campaign_info = (
+        f"Кампания: «{name}»\n"
+        f"Тип: {_CAMPAIGN_TYPE_LABELS.get(ctype, ctype or '?')}\n"
+        f"Статус: {state_str}\n\n"
+        f"Статистика за 30 дней:\n"
+        f"  Показы: {s.get('impressions', 0):,}\n"
+        f"  Клики: {s.get('clicks', 0)}\n"
+        f"  CTR: {s.get('ctr', 0)}%\n"
+        f"  Расход: {s.get('cost', 0):,.0f} ₽\n"
+        f"  CPC: {s.get('cpc', 0)} ₽\n"
+        f"  Расход последние 7 дней: {s.get('last7d_cost', 0):,.0f} ₽\n"
+        f"  Расход предыдущие 7 дней: {s.get('prev7d_cost', 0):,.0f} ₽\n"
+        f"  CTR последние 7 дней: {s.get('last7d_ctr', 0)}%\n"
+        f"  CTR предыдущие 7 дней: {s.get('prev7d_ctr', 0)}%"
+    )
+
+    if question:
+        user_message = f"{campaign_info}{past_context}\n\nВопрос: {question}"
+    else:
+        user_message = (
+            f"{campaign_info}{past_context}\n\n"
+            "Проанализируй эту кампанию детально. "
+            "Эффективен ли CTR и CPC для данного типа кампании? "
+            "Есть ли тревожные тренды? Что конкретно стоит изменить или улучшить?"
+        )
+
+    import anthropic
+    import httpx
+    _proxy = os.getenv("HTTPS_PROXY")
+    _http_client = httpx.Client(proxy=_proxy) if _proxy else None
+    claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=_http_client)
+    try:
+        response = claude.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1500,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+        )
+    except anthropic.APIError as e:
+        return jsonify({"ok": False, "error": f"Anthropic API: {e.status_code} — {e.message}"}), 200
+
+    analysis = response.content[0].text
+    title = question.strip() if question.strip() else _extract_title(analysis)
+    save_to_history(analysis, question, campaign_id=campaign_id)
     return jsonify({"ok": True, "analysis": analysis, "title": title, "is_question": bool(question.strip())})
 
 

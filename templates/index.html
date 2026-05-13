@@ -551,7 +551,9 @@
       const typeTag = c.type ? `<span style="font-size:10px;color:#555;background:#16161f;border:1px solid #2a2a3a;border-radius:3px;padding:1px 5px;margin-left:4px;">${TYPE_LABEL[c.type] || c.type}</span>` : '';
       return `<tr class="${rCls}">
         <td class="campaign-name" title="${escHtml(c.name)}">
-          <span class="campaign-name-text">${escHtml(c.name)}${typeTag}</span>
+          <a href="/campaign/${c.id}" style="color:inherit;text-decoration:none;" onmouseover="this.style.color='#fc3f1d'" onmouseout="this.style.color='inherit'">
+            <span class="campaign-name-text">${escHtml(c.name)}${typeTag}</span>
+          </a>
           <span class="campaign-id" onclick="copyId(${c.id},this)">ID ${c.id}</span>
         </td>
         <td><span class="status-${si.cls}">● ${si.label}</span></td>
