@@ -205,6 +205,10 @@ def index():
     try:
         campaign_stats, daily_stats = get_campaign_stats(DIRECT_TOKEN, [])
         api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
+        missing_ids = [cid for cid in campaign_stats if cid not in api_by_id]
+        if missing_ids:
+            for c in get_campaigns_by_ids(DIRECT_TOKEN, missing_ids):
+                api_by_id[c["Id"]] = c
         for cid, s in campaign_stats.items():
             meta = api_by_id.get(cid, {})
             campaigns.append({
@@ -359,6 +363,10 @@ def analyze():
         campaign_stats, _ = get_campaign_stats(DIRECT_TOKEN, [])
         _enrich_stats(campaign_stats)
         api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
+        missing_ids = [cid for cid in campaign_stats if cid not in api_by_id]
+        if missing_ids:
+            for c in get_campaigns_by_ids(DIRECT_TOKEN, missing_ids):
+                api_by_id[c["Id"]] = c
         campaigns = []
         for cid, s in campaign_stats.items():
             meta = api_by_id.get(cid, {})
