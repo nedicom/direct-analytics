@@ -279,6 +279,30 @@ def index():
     )
 
 
+@app.route("/api/debug-states")
+@login_required
+def debug_states():
+    campaign_stats, _ = get_campaign_stats(DIRECT_TOKEN, [])
+    api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
+    missing_ids = [cid for cid in campaign_stats if cid not in api_by_id]
+    if missing_ids:
+        for c in get_campaigns_by_ids(DIRECT_TOKEN, missing_ids):
+            api_by_id[c["Id"]] = c
+    rows = []
+    for cid, s in campaign_stats.items():
+        meta = api_by_id.get(cid, {})
+        rows.append({
+            "id": cid,
+            "name": s["name"][:40],
+            "state": meta.get("State", "—MISSING—"),
+            "status": meta.get("Status", "—MISSING—"),
+            "type": meta.get("Type", "—MISSING—"),
+            "in_api": cid in api_by_id,
+        })
+    rows.sort(key=lambda r: r["state"])
+    return jsonify(rows)
+
+
 @app.route("/api/debug-campaigns")
 @login_required
 def debug_campaigns():
