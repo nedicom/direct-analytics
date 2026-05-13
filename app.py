@@ -77,11 +77,31 @@ def calc_stats(campaigns: list, stats: dict) -> dict:
     }
 
 
+MASTER_CAMPAIGN_TYPES = {"UNIFIED_CAMPAIGN", "SMART_CAMPAIGN"}
+
+
+def _ctr_class(ctr: float, impressions: int, campaign_type: str) -> str:
+    if impressions <= 100:
+        return "mid"
+    if campaign_type in MASTER_CAMPAIGN_TYPES:
+        if ctr < 0.15:
+            return "low"
+        if ctr > 2.0:
+            return "high"
+    else:
+        if ctr < 1.0:
+            return "low"
+        if ctr > 5.0:
+            return "high"
+    return "mid"
+
+
 def _enrich_stats(campaign_stats: dict) -> None:
     """Add cpc, ctr_class, cost_trend, ctr_trend to each campaign entry in-place."""
     for s in campaign_stats.values():
         s["cpc"] = round(s["cost"] / s["clicks"], 2) if s["clicks"] else 0
 
+        # ctr_class is set to a default here; caller should override with campaign type info
         ctr = s["ctr"]
         if s["impressions"] > 100 and ctr < 1.0:
             s["ctr_class"] = "low"
@@ -126,16 +146,22 @@ def _build_alerts(campaigns: list, campaign_stats: dict) -> list[dict]:
     for c in campaigns:
         s = campaign_stats.get(c["Id"], {})
         state = c.get("State", "")
+        ctype = c.get("Type", "")
         name = c["Name"]
+        is_master = ctype in MASTER_CAMPAIGN_TYPES
 
         if state == "ON" and s.get("impressions", 0) == 0:
             alerts.append({"type": "red", "msg": f"Кампания «{name}» активна, но нет показов за 30 дней"})
 
         ctr = s.get("ctr", 0)
         impr = s.get("impressions", 0)
-        if impr > 1000 and ctr < 0.5:
+        if is_master:
+            crit_threshold, warn_threshold = 0.1, 0.2
+        else:
+            crit_threshold, warn_threshold = 0.5, 1.0
+        if impr > 1000 and ctr < crit_threshold:
             alerts.append({"type": "red", "msg": f"Кампания «{name}» — CTR {ctr}% (критически низкий)"})
-        elif impr > 1000 and ctr < 1.0:
+        elif impr > 1000 and ctr < warn_threshold:
             alerts.append({"type": "orange", "msg": f"Кампания «{name}» — CTR {ctr}% (ниже нормы)"})
 
         if s.get("cost_trend") == "up" and s.get("cost_trend_pct", 0) >= 100:
@@ -186,6 +212,7 @@ def index():
                 "Name": s["name"],
                 "Status": meta.get("Status", ""),
                 "State": meta.get("State", ""),
+                "Type": meta.get("Type", ""),
                 "StartDate": meta.get("StartDate", ""),
             })
     except Exception as e:
@@ -208,15 +235,17 @@ def index():
     campaigns_js = []
     for c in campaigns:
         s = campaign_stats.get(c["Id"], {})
+        ctype = c.get("Type", "")
         campaigns_js.append({
             "id": c["Id"],
             "name": c["Name"],
             "state": c.get("State", ""),
             "status": c.get("Status", ""),
+            "type": ctype,
             "impressions": s.get("impressions", 0),
             "clicks": s.get("clicks", 0),
             "ctr": s.get("ctr", 0),
-            "ctr_class": s.get("ctr_class", "mid"),
+            "ctr_class": _ctr_class(s.get("ctr", 0), s.get("impressions", 0), ctype),
             "cost": s.get("cost", 0),
             "cpc": s.get("cpc", 0),
             "cost_trend": s.get("cost_trend", "flat"),
@@ -338,6 +367,7 @@ def analyze():
                 "Name": s["name"],
                 "State": meta.get("State", ""),
                 "Status": meta.get("Status", ""),
+                "Type": meta.get("Type", ""),
                 "stats": s,
             })
     except Exception as e:
@@ -363,8 +393,13 @@ def analyze():
             return "Завершена"
         return state or status or "?"
 
+    type_label = {
+        "UNIFIED_CAMPAIGN": "Мастер", "SMART_CAMPAIGN": "Смарт",
+        "TEXT_CAMPAIGN": "Текст", "DYNAMIC_TEXT_CAMPAIGN": "Динамика",
+        "MOBILE_APP_CAMPAIGN": "Мобайл", "MCBANNER_CAMPAIGN": "Баннер",
+    }
     campaigns_text = "\n".join([
-        f"• «{c['Name']}» ({state_label(c)}) | "
+        f"• «{c['Name']}» [{type_label.get(c.get('Type',''), c.get('Type','?'))}] ({state_label(c)}) | "
         f"Показы: {c['stats']['impressions']:,} | "
         f"Клики: {c['stats']['clicks']} | "
         f"CTR: {c['stats']['ctr']}% | "

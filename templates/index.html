@@ -492,12 +492,22 @@
     return Number(n).toLocaleString('ru-RU');
   }
 
+  const MASTER_TYPES = new Set(['UNIFIED_CAMPAIGN', 'SMART_CAMPAIGN']);
+  const TYPE_LABEL = {
+    UNIFIED_CAMPAIGN: 'Мастер', SMART_CAMPAIGN: 'Смарт',
+    TEXT_CAMPAIGN: 'Текст', DYNAMIC_TEXT_CAMPAIGN: 'Динамика',
+    MOBILE_APP_CAMPAIGN: 'Мобайл', MCBANNER_CAMPAIGN: 'Баннер',
+    CPM_BANNER_CAMPAIGN: 'CPM',
+  };
+
   function campaignStatusInfo(c) {
-    const s = c.state, st = c.status;
-    if (s === 'ON' || (!s && st === 'ACCEPTED')) return {label: 'Активна',      cls: 'active'};
-    if (['SUSPENDED','OFF','OFF_BY_MONITORING'].includes(s))  return {label: 'Остановлена', cls: 'suspended'};
-    if (['ENDED','ARCHIVED','CONVERTED'].includes(s))         return {label: 'Завершена',   cls: 'ended'};
-    return {label: s || st || '—', cls: 'other'};
+    const s = c.state;
+    if (s === 'ON')  return {label: 'Активна',      cls: 'active'};
+    if (['SUSPENDED','OFF','OFF_BY_MONITORING'].includes(s)) return {label: 'Остановлена', cls: 'suspended'};
+    if (['ENDED','ARCHIVED','CONVERTED'].includes(s))        return {label: 'Завершена',   cls: 'ended'};
+    // fallback for campaigns with no state (not in campaigns API response)
+    if (c.status === 'ACCEPTED') return {label: 'Активна', cls: 'active'};
+    return {label: s || c.status || '—', cls: 'other'};
   }
 
   function trendHtml(trend, pct) {
@@ -509,8 +519,10 @@
   // ── Filtering & sorting ──
   function getSortedFiltered() {
     let data = CAMPAIGNS.filter(c => {
-      if (filterStatus === 'active')
-        return c.state === 'ON' || (!c.state && c.status === 'ACCEPTED');
+      if (filterStatus === 'active') {
+        if (c.state) return c.state === 'ON';
+        return c.status === 'ACCEPTED';  // fallback when state not available
+      }
       if (filterStatus === 'paused')
         return ['SUSPENDED','OFF','OFF_BY_MONITORING'].includes(c.state);
       return true;
@@ -540,9 +552,10 @@
       const si   = campaignStatusInfo(c);
       const rCls = c.ctr_class === 'low' ? 'row-ctr-low' : (c.ctr_class === 'high' ? 'row-ctr-high' : '');
       const ctrCls = c.ctr_class === 'low' ? 'num ctr-low' : (c.ctr_class === 'high' ? 'num ctr-high' : 'num');
+      const typeTag = c.type ? `<span style="font-size:10px;color:#555;background:#16161f;border:1px solid #2a2a3a;border-radius:3px;padding:1px 5px;margin-left:4px;">${TYPE_LABEL[c.type] || c.type}</span>` : '';
       return `<tr class="${rCls}">
         <td class="campaign-name" title="${escHtml(c.name)}">
-          <span class="campaign-name-text">${escHtml(c.name)}</span>
+          <span class="campaign-name-text">${escHtml(c.name)}${typeTag}</span>
           <span class="campaign-id" onclick="copyId(${c.id},this)">ID ${c.id}</span>
         </td>
         <td><span class="status-${si.cls}">● ${si.label}</span></td>

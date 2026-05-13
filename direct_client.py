@@ -19,7 +19,7 @@ def _campaigns_request(token: str, selection_criteria: dict) -> list[dict]:
         "method": "get",
         "params": {
             "SelectionCriteria": selection_criteria,
-            "FieldNames": ["Id", "Name", "Status", "StartDate"],
+            "FieldNames": ["Id", "Name", "Status", "State", "Type", "StartDate"],
             "Page": {"Limit": 1000},
         },
     }
