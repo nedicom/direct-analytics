@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from dotenv import load_dotenv
@@ -507,8 +507,15 @@ def campaign_detail(campaign_id):
     totals = {}
     daily_stats = {}
 
+    date_to_default = datetime.now().strftime("%Y-%m-%d")
+    date_from_default = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    date_from = request.args.get("date_from", date_from_default)
+    date_to = request.args.get("date_to", date_to_default)
+
     try:
-        campaign_stats, _ = get_campaign_stats(DIRECT_TOKEN, [])
+        campaign_stats, _ = get_campaign_stats(
+            DIRECT_TOKEN, [], date_from=date_from, date_to=date_to
+        )
         api_by_id = {c["Id"]: c for c in get_campaigns(DIRECT_TOKEN)}
         missing_ids = [cid for cid in campaign_stats if cid not in api_by_id]
         if missing_ids:
@@ -523,17 +530,54 @@ def campaign_detail(campaign_id):
         error = str(e)
 
     sorted_days = sorted(daily_stats.items())
+
+    # Chart data
     chart_labels = [d for d, _ in sorted_days]
     chart_costs = [round(v["cost"], 2) for _, v in sorted_days]
     chart_clicks = [v["clicks"] for _, v in sorted_days]
+    chart_impressions = [v["impressions"] for _, v in sorted_days]
+    chart_ctrs = [
+        round(v["clicks"] / v["impressions"] * 100, 2) if v["impressions"] else 0
+        for _, v in sorted_days
+    ]
 
+    # Week-over-week (always last 7 calendar days vs previous 7)
     this_week_cost = round(sum(v["cost"] for _, v in sorted_days[-7:]), 2) if sorted_days else 0
     prev_week_cost = round(sum(v["cost"] for _, v in sorted_days[-14:-7]), 2) if len(sorted_days) >= 8 else 0
+    this_week_clicks = sum(v["clicks"] for _, v in sorted_days[-7:]) if sorted_days else 0
+    prev_week_clicks = sum(v["clicks"] for _, v in sorted_days[-14:-7]) if len(sorted_days) >= 8 else 0
+
+    # Extended summary stats
+    active_days = [d for d, v in sorted_days if v["cost"] > 0 or v["clicks"] > 0]
+    n_active = len(active_days)
+    avg_daily_cost = round(totals.get("cost", 0) / n_active, 0) if n_active else 0
+    avg_daily_clicks = round(totals.get("clicks", 0) / n_active, 1) if n_active else 0
+
+    best_ctr_day = max(
+        sorted_days,
+        key=lambda x: x[1]["clicks"] / x[1]["impressions"] if x[1]["impressions"] else 0,
+        default=None,
+    )
+    best_clicks_day = max(sorted_days, key=lambda x: x[1]["clicks"], default=None)
+    worst_cost_day = max(sorted_days, key=lambda x: x[1]["cost"], default=None)
+
+    # Daily breakdown table for JS rendering
+    daily_table = []
+    for d, v in sorted_days:
+        ctr = round(v["clicks"] / v["impressions"] * 100, 2) if v["impressions"] else 0
+        cpc = round(v["cost"] / v["clicks"], 2) if v["clicks"] else 0
+        daily_table.append({
+            "date": d,
+            "impressions": v["impressions"],
+            "clicks": v["clicks"],
+            "ctr": ctr,
+            "cost": round(v["cost"], 2),
+            "cpc": cpc,
+        })
 
     ctype = campaign_meta.get("Type", "")
     state = campaign_meta.get("State", "")
     campaign_name = totals.get("name") or campaign_meta.get("Name", f"Кампания {campaign_id}")
-
     history = load_history(campaign_id=campaign_id)
 
     return render_template(
@@ -547,11 +591,24 @@ def campaign_detail(campaign_id):
         totals=totals,
         history=history,
         error=error,
+        date_from=date_from,
+        date_to=date_to,
         chart_labels=json.dumps(chart_labels),
         chart_costs=json.dumps(chart_costs),
         chart_clicks=json.dumps(chart_clicks),
+        chart_impressions=json.dumps(chart_impressions),
+        chart_ctrs=json.dumps(chart_ctrs),
+        daily_table=json.dumps(daily_table, ensure_ascii=False),
         this_week_cost=this_week_cost,
         prev_week_cost=prev_week_cost,
+        this_week_clicks=this_week_clicks,
+        prev_week_clicks=prev_week_clicks,
+        n_active=n_active,
+        avg_daily_cost=int(avg_daily_cost),
+        avg_daily_clicks=avg_daily_clicks,
+        best_ctr_day=best_ctr_day,
+        best_clicks_day=best_clicks_day,
+        worst_cost_day=worst_cost_day,
     )
 
 

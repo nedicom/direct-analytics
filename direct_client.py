@@ -43,7 +43,13 @@ def get_campaigns_by_ids(token: str, ids: list[int]) -> list[dict]:
     return _campaigns_request(token, {"Ids": ids})
 
 
-def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> tuple[dict, dict]:
+def get_campaign_stats(
+    token: str,
+    campaign_ids: list[int],
+    days: int = 30,
+    date_from: str = None,
+    date_to: str = None,
+) -> tuple[dict, dict]:
     """Returns (campaign_stats, daily_stats).
 
     campaign_stats: campaign_id → {name, impressions, clicks, cost, ctr,
@@ -51,8 +57,8 @@ def get_campaign_stats(token: str, campaign_ids: list[int], days: int = 30) -> t
                                     prev7d_cost, prev7d_clicks, prev7d_impressions}
     daily_stats: date_str → {impressions, clicks, cost}
     """
-    date_to = datetime.now().strftime("%Y-%m-%d")
-    date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    date_to = date_to or datetime.now().strftime("%Y-%m-%d")
+    date_from = date_from or (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     seven_days_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     fourteen_days_ago = (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d")
 

@@ -3,105 +3,131 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ campaign_name }} — Директ Аналитика</title>
+  <title>{{ campaign_name }} — Директ</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
 
-    header {
-      background: #1a1a24; border-bottom: 1px solid #2a2a3a;
-      padding: 14px 32px; display: flex; align-items: center; gap: 16px;
-    }
-    .back-link { color: #666; text-decoration: none; font-size: 14px; white-space: nowrap; }
+    header { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 14px 32px; display: flex; align-items: center; gap: 16px; }
+    .back-link { color: #666; text-decoration: none; font-size: 14px; flex-shrink: 0; }
     .back-link:hover { color: #fc3f1d; }
-    header h1 { font-size: 16px; color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .header-right { color: #fc3f1d; font-size: 13px; white-space: nowrap; }
+    header h1 { font-size: 15px; color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hdr-right { color: #fc3f1d; font-size: 12px; flex-shrink: 0; }
 
-    .container { max-width: 1200px; margin: 0 auto; padding: 24px 32px; }
+    .container { max-width: 1300px; margin: 0 auto; padding: 24px 32px; }
 
-    /* Campaign subtitle */
-    .campaign-subtitle {
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 20px; flex-wrap: wrap;
-    }
-    .type-badge {
-      font-size: 12px; background: #1e1e2a; border: 1px solid #2a2a3a;
-      border-radius: 5px; padding: 3px 10px; color: #888;
-    }
-    .state-active    { font-size: 12px; color: #4caf50; }
-    .state-suspended { font-size: 12px; color: #888; }
-    .state-ended     { font-size: 12px; color: #555; }
-    .state-other     { font-size: 12px; color: #aaa; }
-    .start-date      { font-size: 12px; color: #444; }
+    /* Subtitle */
+    .campaign-sub { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+    .badge-type  { font-size: 11px; background: #1e1e2a; border: 1px solid #2a2a3a; border-radius: 4px; padding: 3px 9px; color: #777; }
+    .badge-on    { font-size: 11px; color: #4caf50; }
+    .badge-off   { font-size: 11px; color: #888; }
+    .badge-ended { font-size: 11px; color: #555; }
+    .meta-txt    { font-size: 11px; color: #444; }
 
-    /* Stats */
-    .stats-row {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px; margin-bottom: 20px;
+    /* Date filter */
+    .date-filter {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px;
+      padding: 12px 18px; margin-bottom: 20px;
     }
+    .date-filter label { font-size: 12px; color: #666; display: flex; align-items: center; gap: 6px; }
+    .date-input {
+      background: #12121a; border: 1px solid #2a2a3a; border-radius: 6px;
+      padding: 6px 10px; color: #e0e0e0; font-size: 13px; outline: none;
+      color-scheme: dark;
+    }
+    .date-input:focus { border-color: #fc3f1d; }
+    .preset-btns { display: flex; gap: 4px; margin-left: 8px; }
+    .pbtn { padding: 5px 10px; background: transparent; border: 1px solid #2a2a3a; border-radius: 5px; color: #666; font-size: 11px; cursor: pointer; }
+    .pbtn:hover { border-color: #fc3f1d; color: #fc3f1d; }
+    .btn-apply { padding: 7px 16px; background: #fc3f1d; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: auto; }
+    .btn-apply:hover { opacity: 0.85; }
+
+    /* Stats grid */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
     .stat-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 14px 18px; }
-    .stat-label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+    .stat-label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
     .stat-value { font-size: 20px; font-weight: 700; color: #fff; }
-    .stat-sub   { font-size: 12px; color: #666; margin-top: 4px; }
+    .stat-sub   { font-size: 11px; color: #555; margin-top: 4px; }
     .stat-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; margin-top: 4px; }
     .badge-up   { background: #1a2e1a; color: #4caf50; }
     .badge-down { background: #2e1a1a; color: #f08080; }
     .badge-flat { background: #1e1e2a; color: #666; }
+    .ctr-low  { color: #f08080 !important; }
+    .ctr-high { color: #4caf50 !important; }
 
     /* Charts */
-    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-    .chart-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 16px 20px; }
-    .chart-title { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 12px; }
-    .chart-wrap  { position: relative; height: 160px; }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    .charts-grid.four { grid-template-columns: 1fr 1fr 1fr 1fr; }
+    .chart-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 10px; padding: 14px 18px; }
+    .chart-title { font-size: 12px; font-weight: 600; color: #888; margin-bottom: 10px; }
+    .chart-wrap  { position: relative; height: 130px; }
 
-    /* Bottom grid */
-    .bottom-grid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
+    /* Main grid */
+    .main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 20px; }
 
-    /* Claude card */
+    /* Table card */
     .card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; overflow: hidden; }
-    .card-header { padding: 14px 20px; border-bottom: 1px solid #2a2a3a; font-size: 14px; font-weight: 600; color: #ccc; }
+    .card-header { padding: 13px 18px; border-bottom: 1px solid #2a2a3a; font-size: 13px; font-weight: 600; color: #ccc; display: flex; align-items: center; justify-content: space-between; }
+    .card-count { font-size: 11px; color: #555; font-weight: 400; }
 
-    .analysis-box { padding: 18px; min-height: 160px; }
-    .analysis-placeholder { color: #444; font-size: 14px; text-align: center; margin-top: 50px; }
-    .analysis-text { font-size: 13px; line-height: 1.75; color: #ccc; white-space: pre-wrap; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { padding: 9px 14px; text-align: left; color: #555; font-weight: 500; background: #16161f; position: sticky; top: 0; cursor: pointer; user-select: none; white-space: nowrap; }
+    th:hover { color: #aaa; }
+    th.sort-active { color: #fc3f1d; }
+    th .arr { font-size: 9px; margin-left: 3px; }
+    td { padding: 9px 14px; border-bottom: 1px solid #1e1e2a; white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1e1e2c; }
+    tr.best-day td { background: #121e12; }
+    tr.worst-day td { background: #1e1212; }
+    tr.total-row td { background: #16161f; font-weight: 600; color: #ccc; border-top: 1px solid #2a2a3a; }
+    .num { color: #aaa; text-align: right; }
+    .num.hi { color: #4caf50; }
+    .num.lo { color: #f08080; }
+    .tbl-scroll { overflow-y: auto; max-height: 500px; }
 
-    .question-hints { padding: 0 16px 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-    .hint-chip { font-size: 11px; color: #555; background: #16161f; border: 1px solid #2a2a3a; border-radius: 12px; padding: 3px 10px; cursor: pointer; transition: all 0.15s; }
+    /* Sidebar */
+    .sidebar { display: flex; flex-direction: column; gap: 16px; }
+    .analysis-box { padding: 16px; min-height: 140px; }
+    .analysis-placeholder { color: #444; font-size: 13px; text-align: center; margin-top: 40px; }
+    .analysis-text { font-size: 12px; line-height: 1.75; color: #ccc; white-space: pre-wrap; }
+    .analysis-title { font-size: 11px; color: #fc3f1d; font-weight: 600; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .question-hints { padding: 0 14px 10px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .hint-chip { font-size: 11px; color: #555; background: #16161f; border: 1px solid #2a2a3a; border-radius: 10px; padding: 3px 9px; cursor: pointer; }
     .hint-chip:hover { color: #fc3f1d; border-color: #fc3f1d; }
-
-    .question-row { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #2a2a3a; }
-    .question-input { flex: 1; background: #12121a; border: 1px solid #2a2a3a; border-radius: 6px; padding: 8px 12px; color: #e0e0e0; font-size: 13px; outline: none; }
+    .question-row { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid #2a2a3a; }
+    .question-input { flex: 1; background: #12121a; border: 1px solid #2a2a3a; border-radius: 6px; padding: 7px 10px; color: #e0e0e0; font-size: 12px; outline: none; }
     .question-input:focus { border-color: #fc3f1d; }
 
-    /* Toolbar */
-    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
-    .btn { padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: opacity 0.2s; }
-    .btn:hover { opacity: 0.85; }
+    .btn { padding: 8px 16px; border: none; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-primary { background: #fc3f1d; color: #fff; }
+    .btn-primary:hover { opacity: 0.85; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary   { background: #fc3f1d; color: #fff; }
-    .btn-secondary { background: #2a2a3a; color: #ccc; }
-    .spinner { display: none; width: 18px; height: 18px; border: 2px solid #2a2a3a; border-top-color: #fc3f1d; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    .spinner { display: none; width: 16px; height: 16px; border: 2px solid #2a2a3a; border-top-color: #fc3f1d; border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .status-txt { font-size: 13px; color: #888; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
+    .status-txt { font-size: 12px; color: #888; }
 
-    /* History */
-    .history-list { overflow-y: auto; max-height: 480px; }
-    .history-item { padding: 12px 20px; border-bottom: 1px solid #1e1e2a; cursor: pointer; }
+    .history-list { overflow-y: auto; max-height: 300px; }
+    .history-item { padding: 10px 16px; border-bottom: 1px solid #1e1e2a; cursor: pointer; }
     .history-item:last-child { border-bottom: none; }
     .history-item:hover { background: #1e1e2c; }
-    .history-date    { font-size: 11px; color: #555; margin-bottom: 3px; }
-    .history-preview { font-size: 12px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .history-empty   { padding: 20px; font-size: 13px; color: #444; text-align: center; }
+    .history-date { font-size: 11px; color: #555; margin-bottom: 2px; }
+    .history-preview { font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-empty { padding: 20px; font-size: 12px; color: #444; text-align: center; }
 
-    /* Misc */
-    .error-banner { background: #2a1a1a; border: 1px solid #5a2a2a; border-radius: 8px; padding: 12px 16px; color: #f08080; font-size: 13px; margin-bottom: 20px; }
-    .analysis-title { font-size: 12px; color: #fc3f1d; font-weight: 600; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .error-banner { background: #2a1a1a; border: 1px solid #5a2a2a; border-radius: 8px; padding: 12px 16px; color: #f08080; font-size: 13px; margin-bottom: 18px; }
 
-    @media (max-width: 900px) {
-      .charts-row   { grid-template-columns: 1fr; }
-      .bottom-grid  { grid-template-columns: 1fr; }
-      .container    { padding: 16px; }
+    @media (max-width: 1000px) {
+      .charts-grid { grid-template-columns: 1fr 1fr; }
+      .main-grid   { grid-template-columns: 1fr; }
+      .container   { padding: 16px; }
+    }
+    @media (max-width: 600px) {
+      .charts-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -110,91 +136,132 @@
 <header>
   <a href="/" class="back-link">← Все кампании</a>
   <h1>{{ campaign_name }}</h1>
-  <span class="header-right">NEDICOM</span>
+  <span class="hdr-right">NEDICOM</span>
 </header>
 
 <div class="container">
 
-  <!-- Campaign subtitle -->
-  <div class="campaign-subtitle">
-    {% if campaign_type_label %}
-    <span class="type-badge">{{ campaign_type_label }}</span>
-    {% endif %}
+  <!-- Subtitle -->
+  <div class="campaign-sub">
+    {% if campaign_type_label %}<span class="badge-type">{{ campaign_type_label }}</span>{% endif %}
     {% set s = state %}
-    {% if s == 'ON' %}
-      <span class="state-active">● Активна</span>
-    {% elif s in ('SUSPENDED', 'OFF', 'OFF_BY_MONITORING') %}
-      <span class="state-suspended">● Остановлена</span>
-    {% elif s in ('ENDED', 'ARCHIVED', 'CONVERTED') %}
-      <span class="state-ended">● Завершена</span>
-    {% elif totals %}
-      <span class="state-active">● Активна</span>
-    {% endif %}
-    {% if campaign_meta.get('StartDate') %}
-    <span class="start-date">Запущена: {{ campaign_meta.StartDate }}</span>
-    {% endif %}
-    <span class="start-date">ID {{ campaign_id }}</span>
+    {% if s == 'ON' %}<span class="badge-on">● Активна</span>
+    {% elif s in ('SUSPENDED','OFF','OFF_BY_MONITORING') %}<span class="badge-off">● Остановлена</span>
+    {% elif s in ('ENDED','ARCHIVED','CONVERTED') %}<span class="badge-ended">● Завершена</span>
+    {% elif totals %}<span class="badge-on">● Активна</span>{% endif %}
+    {% if campaign_meta.get('StartDate') %}<span class="meta-txt">Запущена: {{ campaign_meta.StartDate }}</span>{% endif %}
+    <span class="meta-txt">ID {{ campaign_id }}</span>
   </div>
 
-  {% if error %}
-  <div class="error-banner">⚠️ {{ error }}</div>
-  {% endif %}
+  <!-- Date filter -->
+  <div class="date-filter">
+    <label>с <input class="date-input" id="dateFrom" type="date" value="{{ date_from }}"></label>
+    <label>по <input class="date-input" id="dateTo" type="date" value="{{ date_to }}"></label>
+    <div class="preset-btns">
+      <button class="pbtn" onclick="setPreset(7)">7 дней</button>
+      <button class="pbtn" onclick="setPreset(14)">14 дней</button>
+      <button class="pbtn" onclick="setPreset(30)">30 дней</button>
+      <button class="pbtn" onclick="setPreset(90)">90 дней</button>
+    </div>
+    <button class="btn-apply" onclick="applyFilter()">Применить</button>
+  </div>
 
-  <!-- Stats cards -->
+  {% if error %}<div class="error-banner">⚠️ {{ error }}</div>{% endif %}
+
+  <!-- Stats -->
   {% if totals %}
-  {% set wc_change = ((this_week_cost - prev_week_cost) / prev_week_cost * 100) | round(0) | int if prev_week_cost > 0 else 0 %}
+  {% set wc = ((this_week_cost - prev_week_cost) / prev_week_cost * 100)|round(0)|int if prev_week_cost > 0 else 0 %}
+  {% set wclk = ((this_week_clicks - prev_week_clicks) / prev_week_clicks * 100)|round(0)|int if prev_week_clicks > 0 else 0 %}
+  {% set ctr = totals.get('ctr', 0) %}
   <div class="stats-row">
     <div class="stat-card">
       <div class="stat-label">Показы</div>
-      <div class="stat-value">{{ '{:,}'.format(totals.get('impressions', 0)).replace(',', ' ') }}</div>
+      <div class="stat-value">{{ '{:,}'.format(totals.get('impressions',0)).replace(',', ' ') }}</div>
+      <div class="stat-sub">за период</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Клики</div>
-      <div class="stat-value">{{ '{:,}'.format(totals.get('clicks', 0)).replace(',', ' ') }}</div>
+      <div class="stat-value">{{ '{:,}'.format(totals.get('clicks',0)).replace(',', ' ') }}</div>
+      <div class="stat-sub">ср/день: {{ avg_daily_clicks }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">CTR</div>
-      <div class="stat-value {% if totals.get('ctr', 0) < 1 and totals.get('impressions', 0) > 100 %}style="color:#f08080"{% elif totals.get('ctr', 0) > 5 %}style="color:#4caf50"{% endif %}">
-        {{ totals.get('ctr', 0) }}%
-      </div>
+      <div class="stat-value {% if ctr < 1 and totals.get('impressions',0) > 100 %}ctr-low{% elif ctr > 5 %}ctr-high{% endif %}">{{ ctr }}%</div>
       {% if totals.get('prev7d_ctr', 0) > 0 %}
-      <div class="stat-sub">7 дней назад: {{ totals.get('prev7d_ctr', 0) }}%</div>
-      {% endif %}
+      <div class="stat-sub">7д назад: {{ totals.get('prev7d_ctr',0) }}%</div>{% endif %}
     </div>
     <div class="stat-card">
-      <div class="stat-label">Расход (30 дней)</div>
-      <div class="stat-value">{{ '{:,}'.format(totals.get('cost', 0)|int).replace(',', ' ') }} ₽</div>
+      <div class="stat-label">Расход</div>
+      <div class="stat-value">{{ '{:,}'.format(totals.get('cost',0)|int).replace(',', ' ') }} ₽</div>
+      <div class="stat-sub">ср/день: {{ avg_daily_cost }} ₽</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">CPC</div>
-      <div class="stat-value">{{ totals.get('cpc', 0) }} ₽</div>
+      <div class="stat-value">{{ totals.get('cpc',0) }} ₽</div>
+      <div class="stat-sub">цена за клик</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Активных дней</div>
+      <div class="stat-value">{{ n_active }}</div>
+      <div class="stat-sub">с показами/кликами</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Эта неделя</div>
       <div class="stat-value">{{ '{:,}'.format(this_week_cost|int).replace(',', ' ') }} ₽</div>
       {% if prev_week_cost > 0 %}
-        {% if wc_change > 0 %}
-          <span class="stat-badge badge-up">↑ {{ wc_change }}%</span>
-        {% elif wc_change < 0 %}
-          <span class="stat-badge badge-down">↓ {{ wc_change | abs }}%</span>
-        {% else %}
-          <span class="stat-badge badge-flat">= прошлая</span>
-        {% endif %}
+        {% if wc > 0 %}<span class="stat-badge badge-up">↑ {{ wc }}%</span>
+        {% elif wc < 0 %}<span class="stat-badge badge-down">↓ {{ wc|abs }}%</span>
+        {% else %}<span class="stat-badge badge-flat">= прошлая</span>{% endif %}
+      {% endif %}
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Клики (7 дней)</div>
+      <div class="stat-value">{{ '{:,}'.format(this_week_clicks).replace(',', ' ') }}</div>
+      {% if prev_week_clicks > 0 %}
+        {% if wclk > 0 %}<span class="stat-badge badge-up">↑ {{ wclk }}%</span>
+        {% elif wclk < 0 %}<span class="stat-badge badge-down">↓ {{ wclk|abs }}%</span>
+        {% else %}<span class="stat-badge badge-flat">= прошлая</span>{% endif %}
       {% endif %}
     </div>
   </div>
+
+  <!-- Highlights -->
+  {% if best_clicks_day or worst_cost_day %}
+  <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    {% if best_clicks_day %}
+    <div style="background:#121e12;border:1px solid #1e3a1e;border-radius:8px;padding:10px 16px;font-size:12px;">
+      🏆 Лучший день по кликам: <strong>{{ best_clicks_day[0] }}</strong>
+      — {{ best_clicks_day[1].clicks }} кл., {{ best_clicks_day[1].cost|int }} ₽
+    </div>
+    {% endif %}
+    {% if worst_cost_day %}
+    <div style="background:#1e1212;border:1px solid #3a1e1e;border-radius:8px;padding:10px 16px;font-size:12px;">
+      💸 День с макс. расходом: <strong>{{ worst_cost_day[0] }}</strong>
+      — {{ worst_cost_day[1].cost|int }} ₽, {{ worst_cost_day[1].clicks }} кл.
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
   {% endif %}
 
   <!-- Charts -->
   {% if chart_labels != '[]' %}
-  <div class="charts-row">
-    <div class="chart-card">
+  <div class="charts-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:20px;">
+    <div class="chart-card" style="grid-column:span 2">
       <div class="chart-title">Расход по дням, ₽</div>
       <div class="chart-wrap"><canvas id="costChart"></canvas></div>
     </div>
-    <div class="chart-card">
+    <div class="chart-card" style="grid-column:span 2">
       <div class="chart-title">Клики по дням</div>
       <div class="chart-wrap"><canvas id="clicksChart"></canvas></div>
+    </div>
+    <div class="chart-card" style="grid-column:span 2">
+      <div class="chart-title">Показы по дням</div>
+      <div class="chart-wrap"><canvas id="impressionsChart"></canvas></div>
+    </div>
+    <div class="chart-card" style="grid-column:span 2">
+      <div class="chart-title">CTR по дням, %</div>
+      <div class="chart-wrap"><canvas id="ctrChart"></canvas></div>
     </div>
   </div>
   {% endif %}
@@ -206,61 +273,191 @@
     <span class="status-txt" id="statusTxt"></span>
   </div>
 
-  <!-- Bottom grid: Claude | History -->
-  <div class="bottom-grid">
+  <!-- Main grid: daily table | sidebar -->
+  <div class="main-grid">
 
-    <!-- Claude analysis -->
+    <!-- Daily breakdown table -->
     <div class="card">
-      <div class="card-header">✦ Анализ и рекомендации по кампании</div>
-      <div class="analysis-box" id="analysisBox">
-        <div class="analysis-placeholder" id="analysisPlaceholder">
-          Нажмите «Анализ Claude»<br>чтобы получить рекомендации по этой кампании
-        </div>
-        <div class="analysis-title" id="analysisTitle" style="display:none"></div>
-        <div class="analysis-text" id="analysisText" style="display:none"></div>
+      <div class="card-header">
+        Статистика по дням
+        <span class="card-count" id="tableCount"></span>
       </div>
-      <div class="question-hints">
-        <span class="hint-chip" onclick="useHint(this)">Почему CTR такой?</span>
-        <span class="hint-chip" onclick="useHint(this)">Как снизить CPC?</span>
-        <span class="hint-chip" onclick="useHint(this)">Стоит ли увеличить бюджет?</span>
-        <span class="hint-chip" onclick="useHint(this)">Что конкретно изменить?</span>
-      </div>
-      <div class="question-row">
-        <input class="question-input" id="customQuestion"
-               placeholder="Задать вопрос по этой кампании…"
-               onkeydown="if(event.key==='Enter')askQuestion()"
-               onfocus="this.style.borderColor='#fc3f1d'"
-               onblur="this.style.borderColor='#2a2a3a'">
-        <button class="btn btn-primary" style="padding:8px 14px;font-size:13px;" onclick="askQuestion()">→</button>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="sortBy('date')"        id="th-date">Дата <span class="arr"></span></th>
+              <th onclick="sortBy('impressions')" id="th-impressions" style="text-align:right">Показы <span class="arr"></span></th>
+              <th onclick="sortBy('clicks')"      id="th-clicks" style="text-align:right">Клики <span class="arr"></span></th>
+              <th onclick="sortBy('ctr')"         id="th-ctr" style="text-align:right">CTR <span class="arr"></span></th>
+              <th onclick="sortBy('cost')"        id="th-cost" style="text-align:right">Расход ₽ <span class="arr"></span></th>
+              <th onclick="sortBy('cpc')"         id="th-cpc" style="text-align:right">CPC ₽ <span class="arr"></span></th>
+            </tr>
+          </thead>
+          <tbody id="dailyTbody"></tbody>
+        </table>
       </div>
     </div>
 
-    <!-- History -->
-    <div class="card">
-      <div class="card-header">История анализов</div>
-      {% if history %}
-      <div class="history-list">
-        {% for h in history | reverse %}
-        <div class="history-item" onclick="showHistory({{ h.analysis | tojson }}, {{ (h.get('title') or '') | tojson }}, {{ 'true' if h.get('is_question') else 'false' }})">
-          <div class="history-date">{{ h.date }}{% if h.get('is_question') %} · <span style="color:#fc3f1d">вопрос</span>{% endif %}</div>
-          <div class="history-preview">{% if h.get('is_question') %}💬 {% endif %}{{ h.get('title') or h.analysis[:70] }}</div>
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="card">
+        <div class="card-header">✦ Claude — анализ кампании</div>
+        <div class="analysis-box" id="analysisBox">
+          <div class="analysis-placeholder" id="analysisPlaceholder">
+            Нажмите «Анализ Claude»<br>для рекомендаций по этой кампании
+          </div>
+          <div class="analysis-title" id="analysisTitle" style="display:none"></div>
+          <div class="analysis-text" id="analysisText" style="display:none"></div>
         </div>
-        {% endfor %}
+        <div class="question-hints">
+          <span class="hint-chip" onclick="useHint(this)">Почему упал CTR?</span>
+          <span class="hint-chip" onclick="useHint(this)">Как снизить CPC?</span>
+          <span class="hint-chip" onclick="useHint(this)">Стоит ли увеличить бюджет?</span>
+          <span class="hint-chip" onclick="useHint(this)">Что конкретно изменить?</span>
+          <span class="hint-chip" onclick="useHint(this)">Оцени эффективность кампании</span>
+        </div>
+        <div class="question-row">
+          <input class="question-input" id="customQuestion"
+                 placeholder="Вопрос по этой кампании…"
+                 onkeydown="if(event.key==='Enter')askQuestion()"
+                 onfocus="this.style.borderColor='#fc3f1d'"
+                 onblur="this.style.borderColor='#2a2a3a'">
+          <button class="btn btn-primary" style="padding:7px 12px;font-size:12px;" onclick="askQuestion()">→</button>
+        </div>
       </div>
-      {% else %}
-      <div class="history-empty">Анализов по этой кампании ещё нет</div>
-      {% endif %}
+
+      <div class="card">
+        <div class="card-header">История анализов</div>
+        {% if history %}
+        <div class="history-list">
+          {% for h in history | reverse %}
+          <div class="history-item" onclick="showHistory({{ h.analysis|tojson }}, {{ (h.get('title') or '')|tojson }}, {{ 'true' if h.get('is_question') else 'false' }})">
+            <div class="history-date">{{ h.date }}{% if h.get('is_question') %} · <span style="color:#fc3f1d">вопрос</span>{% endif %}</div>
+            <div class="history-preview">{% if h.get('is_question') %}💬 {% endif %}{{ h.get('title') or h.analysis[:60] }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="history-empty">Анализов по этой кампании ещё нет</div>
+        {% endif %}
+      </div>
     </div>
 
   </div>
 </div>
 
 <script>
-  const CAMPAIGN_ID = {{ campaign_id }};
-  const CHART_LABELS = {{ chart_labels | safe }};
-  const CHART_COSTS  = {{ chart_costs  | safe }};
-  const CHART_CLICKS = {{ chart_clicks | safe }};
+  const CAMPAIGN_ID  = {{ campaign_id }};
+  const CHART_LABELS = {{ chart_labels      | safe }};
+  const CHART_COSTS  = {{ chart_costs       | safe }};
+  const CHART_CLICKS = {{ chart_clicks      | safe }};
+  const CHART_IMP    = {{ chart_impressions | safe }};
+  const CHART_CTRS   = {{ chart_ctrs        | safe }};
+  const DAILY_DATA   = {{ daily_table       | safe }};
 
+  // ── Date filter ──
+  function setPreset(days) {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    document.getElementById('dateTo').value   = to.toISOString().slice(0,10);
+    document.getElementById('dateFrom').value = from.toISOString().slice(0,10);
+  }
+  function applyFilter() {
+    const from = document.getElementById('dateFrom').value;
+    const to   = document.getElementById('dateTo').value;
+    if (!from || !to) return;
+    location.href = `/campaign/${CAMPAIGN_ID}?date_from=${from}&date_to=${to}`;
+  }
+
+  // ── Daily table ──
+  let sortCol = 'date';
+  let sortAsc = false;
+
+  function fmtNum(n) { return Number(n).toLocaleString('ru-RU'); }
+  function fmtDate(d) {
+    const [y, m, day] = d.split('-');
+    return `${day}.${m}.${y}`;
+  }
+
+  function getSorted() {
+    return [...DAILY_DATA].sort((a, b) => {
+      let av = a[sortCol], bv = b[sortCol];
+      if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      if (av < bv) return sortAsc ? -1 :  1;
+      if (av > bv) return sortAsc ?  1 : -1;
+      return 0;
+    });
+  }
+
+  function renderTable() {
+    const data = getSorted();
+    const tbody = document.getElementById('dailyTbody');
+    document.getElementById('tableCount').textContent = `· ${data.length} дней`;
+
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#444;padding:20px">Нет данных за период</td></tr>';
+      return;
+    }
+
+    // Totals
+    const tot = data.reduce((acc, r) => ({
+      impressions: acc.impressions + r.impressions,
+      clicks: acc.clicks + r.clicks,
+      cost: acc.cost + r.cost,
+    }), {impressions:0, clicks:0, cost:0});
+    const totCtr = tot.impressions ? (tot.clicks / tot.impressions * 100).toFixed(2) : 0;
+    const totCpc = tot.clicks ? (tot.cost / tot.clicks).toFixed(2) : 0;
+
+    // Max values for highlighting
+    const maxClicks = Math.max(...data.map(r => r.clicks));
+    const maxCost   = Math.max(...data.map(r => r.cost));
+
+    const rows = data.map(r => {
+      const isBest  = r.clicks === maxClicks && maxClicks > 0;
+      const isWorst = r.cost === maxCost && maxCost > 0 && !isBest;
+      const cls = isBest ? 'best-day' : (isWorst ? 'worst-day' : '');
+      const ctrCls = r.ctr < 1 && r.impressions > 50 ? 'num lo' : (r.ctr > 5 ? 'num hi' : 'num');
+      return `<tr class="${cls}">
+        <td>${fmtDate(r.date)}</td>
+        <td class="num">${fmtNum(r.impressions)}</td>
+        <td class="num">${fmtNum(r.clicks)}</td>
+        <td class="${ctrCls}">${r.ctr}%</td>
+        <td class="num">${fmtNum(Math.round(r.cost))} ₽</td>
+        <td class="num">${r.cpc > 0 ? r.cpc + ' ₽' : '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const totalRow = `<tr class="total-row">
+      <td>Итого</td>
+      <td class="num">${fmtNum(tot.impressions)}</td>
+      <td class="num">${fmtNum(tot.clicks)}</td>
+      <td class="num">${totCtr}%</td>
+      <td class="num">${fmtNum(Math.round(tot.cost))} ₽</td>
+      <td class="num">${totCpc > 0 ? totCpc + ' ₽' : '—'}</td>
+    </tr>`;
+
+    tbody.innerHTML = rows + totalRow;
+  }
+
+  function updateSortHeaders() {
+    ['date','impressions','clicks','ctr','cost','cpc'].forEach(col => {
+      const th = document.getElementById('th-' + col);
+      if (!th) return;
+      th.classList.toggle('sort-active', col === sortCol);
+      th.querySelector('.arr').textContent = col === sortCol ? (sortAsc ? '▲' : '▼') : '';
+    });
+  }
+
+  function sortBy(col) {
+    sortAsc = (sortCol === col) ? !sortAsc : false;
+    sortCol = col;
+    renderTable();
+    updateSortHeaders();
+  }
+
+  // ── Claude ──
   function setLoading(on) {
     document.getElementById('spinner').style.display = on ? 'block' : 'none';
     document.getElementById('btnAnalyze').disabled = on;
@@ -270,12 +467,8 @@
   function showAnalysis(text, title, isQuestion) {
     document.getElementById('analysisPlaceholder').style.display = 'none';
     const titleEl = document.getElementById('analysisTitle');
-    if (title) {
-      titleEl.style.display = 'block';
-      titleEl.textContent = (isQuestion ? '💬 ' : '✦ ') + title;
-    } else {
-      titleEl.style.display = 'none';
-    }
+    titleEl.style.display = title ? 'block' : 'none';
+    if (title) titleEl.textContent = (isQuestion ? '💬 ' : '✦ ') + title;
     const el = document.getElementById('analysisText');
     el.style.display = 'block';
     el.textContent = text;
@@ -283,7 +476,7 @@
 
   function showHistory(text, title, isQuestion) {
     showAnalysis(text, title, isQuestion);
-    document.getElementById('analysisBox').scrollIntoView({behavior: 'smooth'});
+    document.getElementById('analysisBox').scrollIntoView({behavior:'smooth'});
   }
 
   function useHint(el) {
@@ -304,15 +497,12 @@
       if (data.ok) {
         showAnalysis(data.analysis, data.title, data.is_question);
         setStatus('');
-        if (!question) location.reload();  // refresh history list after full analysis
+        if (!question) setTimeout(() => location.reload(), 100);
       } else {
         setStatus('Ошибка: ' + data.error);
       }
-    } catch {
-      setStatus('Сетевая ошибка');
-    } finally {
-      setLoading(false);
-    }
+    } catch { setStatus('Сетевая ошибка'); }
+    finally { setLoading(false); }
   }
 
   function askQuestion() {
@@ -322,49 +512,42 @@
     analyzeData(q);
   }
 
-  // Charts
+  // ── Charts ──
   function initCharts() {
     if (!CHART_LABELS.length) return;
-
     Chart.defaults.color = '#555';
     Chart.defaults.borderColor = '#1e1e2a';
-    Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    Chart.defaults.font.size = 11;
+    Chart.defaults.font.size = 10;
 
-    const scales = {
-      x: { grid: {color: '#1a1a24'}, ticks: {maxTicksLimit: 10, callback: (_, i) => CHART_LABELS[i] ? CHART_LABELS[i].slice(5) : ''} },
-      y: { grid: {color: '#1a1a24'}, beginAtZero: true },
-    };
+    const xTicks = { maxTicksLimit: 10, callback: (_, i) => CHART_LABELS[i] ? CHART_LABELS[i].slice(5) : '' };
+    const grid = { color: '#1a1a24' };
+    const scales = { x: {grid, ticks: xTicks}, y: {grid, beginAtZero: true} };
 
     new Chart(document.getElementById('costChart'), {
       type: 'bar',
-      data: {
-        labels: CHART_LABELS,
-        datasets: [{ data: CHART_COSTS, backgroundColor: 'rgba(252,63,29,0.55)', borderColor: 'rgba(252,63,29,0.9)', borderWidth: 1, borderRadius: 2 }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: {display: false}, tooltip: {callbacks: {label: ctx => ' ' + ctx.raw.toLocaleString('ru-RU') + ' ₽'}} },
-        scales,
-      },
+      data: { labels: CHART_LABELS, datasets: [{ data: CHART_COSTS, backgroundColor: 'rgba(252,63,29,0.55)', borderColor: '#fc3f1d', borderWidth: 1, borderRadius: 2 }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label: c => ' ' + c.raw.toLocaleString('ru-RU') + ' ₽'}}}, scales },
     });
-
     new Chart(document.getElementById('clicksChart'), {
       type: 'line',
-      data: {
-        labels: CHART_LABELS,
-        datasets: [{ data: CHART_CLICKS, borderColor: '#4a9eff', backgroundColor: 'rgba(74,158,255,0.08)', borderWidth: 2, fill: true, tension: 0.35, pointRadius: 2 }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: {display: false}, tooltip: {callbacks: {label: ctx => ' ' + ctx.raw.toLocaleString('ru-RU') + ' кл.'}} },
-        scales,
-      },
+      data: { labels: CHART_LABELS, datasets: [{ data: CHART_CLICKS, borderColor: '#4a9eff', backgroundColor: 'rgba(74,158,255,0.08)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 2 }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label: c => ' ' + c.raw.toLocaleString('ru-RU') + ' кл.'}}}, scales },
+    });
+    new Chart(document.getElementById('impressionsChart'), {
+      type: 'line',
+      data: { labels: CHART_LABELS, datasets: [{ data: CHART_IMP, borderColor: '#888', backgroundColor: 'rgba(136,136,136,0.06)', borderWidth: 1.5, fill: true, tension: 0.3, pointRadius: 1 }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label: c => ' ' + c.raw.toLocaleString('ru-RU')}}}, scales },
+    });
+    new Chart(document.getElementById('ctrChart'), {
+      type: 'line',
+      data: { labels: CHART_LABELS, datasets: [{ data: CHART_CTRS, borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.08)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 2 }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label: c => ' ' + c.raw + '%'}}}, scales },
     });
   }
 
+  renderTable();
+  updateSortHeaders();
   initCharts();
 </script>
-
 </body>
 </html>
