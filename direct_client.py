@@ -156,6 +156,17 @@ def get_campaign_stats(
     return result, daily
 
 
+def _extract_negatives(field) -> list:
+    """Yandex returns NegativeKeywords as {"Items": [...]} or plain list."""
+    if not field:
+        return []
+    if isinstance(field, list):
+        return field
+    if isinstance(field, dict):
+        return field.get("Items") or []
+    return []
+
+
 def get_negatives(token: str, campaign_id: int) -> dict:
     """Returns campaign-level and adgroup-level negative keywords."""
     sess = requests.Session()
@@ -171,7 +182,7 @@ def get_negatives(token: str, campaign_id: int) -> dict:
         headers=h,
     )
     camps = camp_resp.json().get("result", {}).get("Campaigns", [])
-    camp_neg = camps[0].get("NegativeKeywords", []) if camps else []
+    camp_neg = _extract_negatives(camps[0].get("NegativeKeywords")) if camps else []
 
     groups = []
     groups_error = None
@@ -194,9 +205,9 @@ def get_negatives(token: str, campaign_id: int) -> dict:
         groups_error = str(e)
 
     return {
-        "campaign_negatives": camp_neg or [],
+        "campaign_negatives": camp_neg,
         "groups": [
-            {"id": g["Id"], "name": g["Name"], "negatives": g.get("NegativeKeywords") or []}
+            {"id": g["Id"], "name": g["Name"], "negatives": _extract_negatives(g.get("NegativeKeywords"))}
             for g in groups
         ],
         "groups_error": groups_error,
