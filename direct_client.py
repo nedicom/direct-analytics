@@ -245,13 +245,22 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
     sess = requests.Session()
     sess.trust_env = False
     resp = sess.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
-    if resp.status_code not in (200, 201, 202):
-        raise Exception(f"Reports API: HTTP {resp.status_code}")
+
+    body = resp.text.strip()
+    if resp.status_code not in (200, 201, 202) or body.startswith("{"):
+        try:
+            err = resp.json()
+            msg = (err.get("error", {}).get("error_detail")
+                   or err.get("error", {}).get("error_string")
+                   or f"HTTP {resp.status_code}")
+        except Exception:
+            msg = body[:300] or f"HTTP {resp.status_code}"
+        raise Exception(f"Reports API: {msg}")
 
     agg: dict[str, dict] = {}
-    for line in resp.text.strip().split("\n")[2:]:
+    for line in body.split("\n")[2:]:
         parts = line.split("\t")
-        if len(parts) < 4:
+        if len(parts) < 4 or parts[0] == "Total":
             continue
         try:
             q = parts[0]
@@ -296,12 +305,19 @@ def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
     session.trust_env = False
     resp = session.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
 
-    if resp.status_code not in (200, 201, 202):
-        raise Exception(f"Reports API: HTTP {resp.status_code} — {resp.text[:200]}")
+    body = resp.text.strip()
+    if resp.status_code not in (200, 201, 202) or body.startswith("{"):
+        try:
+            err = resp.json()
+            msg = (err.get("error", {}).get("error_detail")
+                   or err.get("error", {}).get("error_string")
+                   or f"HTTP {resp.status_code}")
+        except Exception:
+            msg = body[:300] or f"HTTP {resp.status_code}"
+        raise Exception(f"Reports API: {msg}")
 
     result = []
-    lines = resp.text.strip().split("\n")
-    for line in lines[2:]:
+    for line in body.split("\n")[2:]:
         parts = line.split("\t")
         if len(parts) < 5:
             continue
