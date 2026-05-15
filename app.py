@@ -6,7 +6,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, render_template, request, session
 
-from direct_client import get_campaigns, get_campaigns_by_ids, get_campaign_stats
+from direct_client import get_campaigns, get_campaigns_by_ids, get_campaign_stats, get_keyword_stats
 
 load_dotenv()
 
@@ -694,6 +694,16 @@ def analyze_campaign(campaign_id):
     title = question.strip() if question.strip() else _extract_title(analysis)
     save_to_history(analysis, question, campaign_id=campaign_id)
     return jsonify({"ok": True, "analysis": analysis, "title": title, "is_question": bool(question.strip())})
+
+
+@app.route("/api/keywords/<int:campaign_id>/<date>")
+@login_required
+def keywords(campaign_id, date):
+    try:
+        kws = get_keyword_stats(DIRECT_TOKEN, campaign_id, date)
+        return jsonify({"ok": True, "keywords": kws, "date": date})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 if __name__ == "__main__":

@@ -121,6 +121,29 @@
 
     .error-banner { background: #2a1a1a; border: 1px solid #5a2a2a; border-radius: 8px; padding: 12px 16px; color: #f08080; font-size: 13px; margin-bottom: 18px; }
 
+    /* Keywords modal */
+    .kw-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1000; align-items: center; justify-content: center; }
+    .kw-overlay.open { display: flex; }
+    .kw-modal { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 14px; width: 720px; max-width: 96vw; max-height: 80vh; display: flex; flex-direction: column; }
+    .kw-header { padding: 14px 20px; border-bottom: 1px solid #2a2a3a; display: flex; align-items: center; justify-content: space-between; }
+    .kw-title { font-size: 13px; font-weight: 600; color: #ccc; }
+    .kw-close { background: none; border: none; color: #555; font-size: 20px; cursor: pointer; line-height: 1; }
+    .kw-close:hover { color: #ccc; }
+    .kw-body { overflow-y: auto; flex: 1; }
+    .kw-empty { padding: 30px; text-align: center; color: #444; font-size: 13px; }
+    .kw-loading { padding: 30px; text-align: center; color: #555; font-size: 13px; }
+    .kw-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .kw-table th { padding: 9px 14px; text-align: left; color: #555; font-weight: 500; background: #16161f; position: sticky; top: 0; white-space: nowrap; }
+    .kw-table th.r { text-align: right; }
+    .kw-table td { padding: 8px 14px; border-bottom: 1px solid #1e1e2a; }
+    .kw-table tr:last-child td { border-bottom: none; }
+    .kw-table tr:hover td { background: #1e1e2c; }
+    .kw-table td.r { text-align: right; color: #aaa; }
+    .kw-table td.q { color: #ccc; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kw-table td.hi { color: #4caf50; }
+    .day-row { cursor: pointer; }
+    .day-row:hover td { background: #1e1e2c; }
+
     @media (max-width: 1000px) {
       .charts-grid { grid-template-columns: 1fr 1fr; }
       .main-grid   { grid-template-columns: 1fr; }
@@ -347,6 +370,19 @@
   </div>
 </div>
 
+<!-- Keywords modal -->
+<div class="kw-overlay" id="kwOverlay" onclick="closeKw(event)">
+  <div class="kw-modal">
+    <div class="kw-header">
+      <span class="kw-title" id="kwTitle">Поисковые запросы</span>
+      <button class="kw-close" onclick="closeKwModal()">×</button>
+    </div>
+    <div class="kw-body" id="kwBody">
+      <div class="kw-loading">Загружаем…</div>
+    </div>
+  </div>
+</div>
+
 <script>
   const CAMPAIGN_ID  = {{ campaign_id }};
   const HISTORY_DATA = {{ (history | reverse | list) | tojson }};
@@ -418,10 +454,10 @@
     const rows = data.map(r => {
       const isBest  = r.clicks === maxClicks && maxClicks > 0;
       const isWorst = r.cost === maxCost && maxCost > 0 && !isBest;
-      const cls = isBest ? 'best-day' : (isWorst ? 'worst-day' : '');
+      const cls = (isBest ? 'best-day' : (isWorst ? 'worst-day' : '')) + ' day-row';
       const ctrCls = r.ctr < 1 && r.impressions > 50 ? 'num lo' : (r.ctr > 5 ? 'num hi' : 'num');
-      return `<tr class="${cls}">
-        <td>${fmtDate(r.date)}</td>
+      return `<tr class="${cls}" onclick="showKeywords('${r.date}')" title="Поисковые запросы за ${fmtDate(r.date)}">
+        <td>${fmtDate(r.date)} <span style="color:#333;font-size:10px">▸</span></td>
         <td class="num">${fmtNum(r.impressions)}</td>
         <td class="num">${fmtNum(r.clicks)}</td>
         <td class="${ctrCls}">${r.ctr}%</td>
@@ -494,6 +530,39 @@
     const h = HISTORY_DATA[idx];
     showHistory(h.analysis, h.title || '', !!h.is_question);
   }
+
+  // ── Keywords modal ──
+  async function showKeywords(date) {
+    const overlay = document.getElementById('kwOverlay');
+    const body = document.getElementById('kwBody');
+    const title = document.getElementById('kwTitle');
+    const [y, m, d] = date.split('-');
+    title.textContent = `Поисковые запросы — ${d}.${m}.${y}`;
+    body.innerHTML = '<div class="kw-loading">Загружаем данные из Яндекс.Директ…</div>';
+    overlay.classList.add('open');
+    try {
+      const r = await fetch(`/api/keywords/${CAMPAIGN_ID}/${date}`);
+      const data = await r.json();
+      if (!data.ok) { body.innerHTML = `<div class="kw-empty">Ошибка: ${data.error}</div>`; return; }
+      if (!data.keywords.length) { body.innerHTML = '<div class="kw-empty">Нет данных за этот день</div>'; return; }
+      const rows = data.keywords.map(k => `<tr>
+        <td class="q" title="${k.query}">${k.query}</td>
+        <td class="r">${k.impressions.toLocaleString('ru-RU')}</td>
+        <td class="r ${k.clicks > 0 ? 'hi' : ''}">${k.clicks}</td>
+        <td class="r">${k.ctr}%</td>
+        <td class="r">${Math.round(k.cost)} ₽</td>
+      </tr>`).join('');
+      body.innerHTML = `<table class="kw-table">
+        <thead><tr>
+          <th>Запрос</th><th class="r">Показы</th><th class="r">Клики</th><th class="r">CTR</th><th class="r">Расход</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    } catch { body.innerHTML = '<div class="kw-empty">Ошибка сети. Попробуйте снова.</div>'; }
+  }
+  function closeKwModal() { document.getElementById('kwOverlay').classList.remove('open'); }
+  function closeKw(e) { if (e.target === document.getElementById('kwOverlay')) closeKwModal(); }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeKwModal(); });
 
   function useHint(el) {
     document.getElementById('customQuestion').value = el.textContent;

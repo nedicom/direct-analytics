@@ -154,3 +154,54 @@ def get_campaign_stats(
         daily[date]["cost"] = round(daily[date]["cost"], 2)
 
     return result, daily
+
+
+def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
+    """Returns search queries for a campaign on a specific date, sorted by clicks desc."""
+    payload = {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {
+                "DateFrom": date,
+                "DateTo": date,
+                "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
+            },
+            "FieldNames": ["Query", "Impressions", "Clicks", "Cost", "Ctr"],
+            "ReportName": f"kw_{campaign_id}_{date}",
+            "ReportType": "SEARCH_QUERY_PERFORMANCE_REPORT",
+            "DateRangeType": "CUSTOM_DATE",
+            "Format": "TSV",
+            "IncludeVAT": "YES",
+            "IncludeDiscount": "NO",
+        },
+    }
+    headers = _headers(token)
+    headers["processingMode"] = "auto"
+    headers["returnMoneyInMicros"] = "false"
+
+    session = requests.Session()
+    session.trust_env = False
+    resp = session.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
+
+    if resp.status_code not in (200, 201, 202):
+        raise Exception(f"Reports API: HTTP {resp.status_code} — {resp.text[:200]}")
+
+    result = []
+    lines = resp.text.strip().split("\n")
+    for line in lines[2:]:
+        parts = line.split("\t")
+        if len(parts) < 5:
+            continue
+        try:
+            result.append({
+                "query": parts[0],
+                "impressions": int(parts[1]) if parts[1] != "--" else 0,
+                "clicks": int(parts[2]) if parts[2] != "--" else 0,
+                "cost": round(float(parts[3]), 2) if parts[3] != "--" else 0.0,
+                "ctr": round(float(parts[4]), 2) if parts[4] != "--" else 0.0,
+            })
+        except (ValueError, IndexError):
+            continue
+
+    result.sort(key=lambda x: x["clicks"], reverse=True)
+    return result
