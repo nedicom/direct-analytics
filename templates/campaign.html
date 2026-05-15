@@ -186,11 +186,14 @@
     .gen-input:focus { border-color: #fc3f1d; }
     .gen-status { font-size: 12px; color: #888; flex: 1; }
     .gen-status.err { color: #f08080; }
-    .sug-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1e1e2a; }
+    .sug-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #1e1e2a; }
     .sug-item:last-child { border-bottom: none; }
-    .sug-check { margin-top: 2px; accent-color: #fc3f1d; width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
-    .sug-phrase { font-size: 12px; color: #ccc; font-family: monospace; }
-    .sug-reason { font-size: 11px; color: #555; margin-top: 2px; }
+    .sug-check { accent-color: #fc3f1d; width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+    .sug-phrase-input { flex: 1; background: #12121a; border: 1px solid #2a2a3a; border-radius: 5px; padding: 4px 8px; color: #ccc; font-size: 12px; font-family: monospace; outline: none; min-width: 0; }
+    .sug-phrase-input:focus { border-color: #fc3f1d; }
+    .sug-reason { font-size: 11px; color: #555; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ops-hint { font-size: 11px; color: #444; margin-bottom: 10px; line-height: 1.6; }
+    .ops-hint code { background: #12121a; padding: 1px 5px; border-radius: 3px; color: #888; font-family: monospace; }
     .preset-row { display: flex; gap: 6px; margin-bottom: 14px; }
 
     @media (max-width: 800px) { .neg-section { grid-template-columns: 1fr; } }
@@ -495,7 +498,10 @@
         </div>
       </div>
       <div id="suggestionsWrap" style="display:none">
-        <div style="font-size:12px;color:#888;margin-bottom:10px">Claude предлагает добавить в минус-фразы кампании:</div>
+        <div class="ops-hint">
+          Операторы: <code>!слово</code> — точная форма &nbsp;·&nbsp; <code>"фраза"</code> — точный порядок слов &nbsp;·&nbsp; без оператора — любая форма слова
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:8px">Claude предлагает добавить в минус-фразы кампании (можно отредактировать):</div>
         <div id="suggestionsList"></div>
       </div>
     </div>
@@ -913,10 +919,8 @@
       document.getElementById('suggestionsList').innerHTML = data.suggestions.map((s, i) => `
         <div class="sug-item">
           <input type="checkbox" class="sug-check" id="sug${i}" checked>
-          <div>
-            <div class="sug-phrase">${s.phrase}</div>
-            <div class="sug-reason">${s.reason}</div>
-          </div>
+          <input type="text" class="sug-phrase-input" id="sugPhrase${i}" value="${s.phrase.replace(/"/g,'&quot;')}">
+          <span class="sug-reason" title="${s.reason}">${s.reason}</span>
         </div>`).join('');
       document.getElementById('suggestionsWrap').style.display = 'block';
       document.getElementById('btnApplySug').style.display = '';
@@ -927,7 +931,10 @@
 
   async function applySuggestions() {
     const all = JSON.parse(document.getElementById('btnApplySug').dataset.suggestions);
-    const selected = all.filter((_, i) => document.getElementById(`sug${i}`)?.checked).map(s => s.phrase);
+    const selected = all
+      .map((_, i) => ({ checked: document.getElementById(`sug${i}`)?.checked, phrase: document.getElementById(`sugPhrase${i}`)?.value.trim() }))
+      .filter(x => x.checked && x.phrase)
+      .map(x => x.phrase);
     if (!selected.length) { document.getElementById('analyzeNegStatus').textContent = 'Ничего не выбрано'; return; }
     const statusEl = document.getElementById('analyzeNegStatus');
     statusEl.textContent = 'Добавляем…'; statusEl.className = 'gen-status';
