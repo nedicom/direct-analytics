@@ -793,8 +793,9 @@
 
   function renderCampNeg(negatives) {
     const el = document.getElementById('campNegBody');
-    if (!negatives.length) { el.innerHTML = '<div class="neg-chips"><span class="neg-empty">Нет минус-фраз</span></div>'; return; }
-    el.innerHTML = '<div class="neg-chips">' + negatives.map(n => `<span class="neg-chip">${n}</span>`).join('') + '</div>';
+    const neg = negatives || [];
+    if (!neg.length) { el.innerHTML = '<div class="neg-chips"><span class="neg-empty">Нет минус-фраз</span></div>'; return; }
+    el.innerHTML = '<div class="neg-chips">' + neg.map(n => `<span class="neg-chip">${n}</span>`).join('') + '</div>';
   }
 
   function renderGroupNeg(groups) {
@@ -809,7 +810,7 @@
             <button class="neg-btn" style="padding:2px 8px;font-size:10px" onclick="openAddNegGroupIdx(${i})">+ Добавить</button>
           </span>
         </div>
-        <div class="neg-group-chips">${g.negatives.length ? g.negatives.map(n => `<span class="neg-chip">${n}</span>`).join('') : '<span class="neg-empty">нет</span>'}</div>
+        <div class="neg-group-chips">${(g.negatives||[]).length ? (g.negatives||[]).map(n => `<span class="neg-chip">${n}</span>`).join('') : '<span class="neg-empty">нет</span>'}</div>
       </div>`).join('');
   }
 

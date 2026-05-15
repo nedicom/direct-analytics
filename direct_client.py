@@ -185,9 +185,9 @@ def get_negatives(token: str, campaign_id: int) -> dict:
     groups = grp_resp.json().get("result", {}).get("AdGroups", [])
 
     return {
-        "campaign_negatives": camp_neg,
+        "campaign_negatives": camp_neg or [],
         "groups": [
-            {"id": g["Id"], "name": g["Name"], "negatives": g.get("NegativeKeywords", [])}
+            {"id": g["Id"], "name": g["Name"], "negatives": g.get("NegativeKeywords") or []}
             for g in groups
         ],
     }
