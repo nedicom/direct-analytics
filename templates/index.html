@@ -606,8 +606,17 @@
     document.getElementById('btnRefresh').disabled = on;
   }
 
-  function setStatus(msg) {
-    document.getElementById('statusTxt').textContent = msg;
+  function setStatus(msg, isError) {
+    const el = document.getElementById('statusTxt');
+    el.textContent = msg;
+    el.style.color = isError ? '#f08080' : '#888';
+  }
+  function friendlyError(status, serverMsg) {
+    if (!status) return 'Нет связи с сервером. Подождите минуту и обновите страницу.';
+    if (status === 429) return `Claude перегружен (${status}). Подождите 1–2 минуты и попробуйте снова.`;
+    if (status === 503) return `Сервис Claude недоступен (${status}). Напишите Марку.`;
+    if (status === 500) return `Ошибка сервера (${status}). Напишите Марку.`;
+    return `Ошибка ${status}: ${serverMsg}. Напишите Марку.`;
   }
 
   function showAnalysis(text, title, isQuestion) {
@@ -652,10 +661,10 @@
         setStatus('Данные обновлены — перезагружаем…');
         setTimeout(() => location.reload(), 800);
       } else {
-        setStatus('Ошибка: ' + data.error);
+        setStatus(friendlyError(r.status, data.error), true);
       }
     } catch {
-      setStatus('Сетевая ошибка');
+      setStatus(friendlyError(null, ''), true);
     } finally {
       setLoading(false);
     }
@@ -675,10 +684,10 @@
         showAnalysis(data.analysis, data.title, data.is_question);
         setStatus('');
       } else {
-        setStatus('Ошибка: ' + data.error);
+        setStatus(friendlyError(r.status, data.error), true);
       }
     } catch {
-      setStatus('Сетевая ошибка');
+      setStatus(friendlyError(null, ''), true);
     } finally {
       setLoading(false);
     }
