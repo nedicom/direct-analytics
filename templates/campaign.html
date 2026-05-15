@@ -144,6 +144,57 @@
     .day-row { cursor: pointer; }
     .day-row:hover td { background: #1e1e2c; }
 
+    /* Negatives section */
+    .neg-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+    .neg-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; overflow: hidden; }
+    .neg-card-header { padding: 12px 16px; border-bottom: 1px solid #2a2a3a; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .neg-card-title { font-size: 13px; font-weight: 600; color: #ccc; }
+    .neg-card-actions { display: flex; gap: 6px; }
+    .neg-btn { padding: 5px 11px; border: 1px solid #2a2a3a; border-radius: 6px; background: transparent; color: #888; font-size: 11px; cursor: pointer; }
+    .neg-btn:hover { border-color: #fc3f1d; color: #fc3f1d; }
+    .neg-btn.primary { background: #fc3f1d; border-color: #fc3f1d; color: #fff; }
+    .neg-btn.primary:hover { opacity: 0.85; }
+    .neg-body { padding: 14px 16px; min-height: 80px; }
+    .neg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .neg-chip { font-size: 11px; background: #12121a; border: 1px solid #2a2a3a; border-radius: 4px; padding: 3px 8px; color: #777; font-family: monospace; }
+    .neg-empty { color: #444; font-size: 12px; font-style: italic; }
+    .neg-loading { color: #555; font-size: 12px; }
+    .neg-group { border-bottom: 1px solid #1e1e2a; padding: 10px 16px; }
+    .neg-group:last-child { border-bottom: none; }
+    .neg-group-name { font-size: 12px; color: #888; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+    .neg-group-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .neg-count { font-size: 10px; color: #444; }
+
+    /* Generic overlay/modal reuse */
+    .gen-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1001; align-items: center; justify-content: center; }
+    .gen-overlay.open { display: flex; }
+    .gen-modal { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 14px; width: 560px; max-width: 96vw; max-height: 85vh; display: flex; flex-direction: column; }
+    .gen-header { padding: 14px 20px; border-bottom: 1px solid #2a2a3a; display: flex; align-items: center; justify-content: space-between; }
+    .gen-title { font-size: 13px; font-weight: 600; color: #ccc; }
+    .gen-close { background: none; border: none; color: #555; font-size: 20px; cursor: pointer; line-height: 1; }
+    .gen-close:hover { color: #ccc; }
+    .gen-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+    .gen-footer { padding: 12px 20px; border-top: 1px solid #2a2a3a; display: flex; gap: 8px; justify-content: flex-end; }
+    .gen-label { font-size: 12px; color: #666; margin-bottom: 6px; display: block; }
+    .gen-textarea { width: 100%; background: #12121a; border: 1px solid #2a2a3a; border-radius: 7px; padding: 10px; color: #e0e0e0; font-size: 12px; font-family: monospace; resize: vertical; outline: none; min-height: 120px; }
+    .gen-textarea:focus { border-color: #fc3f1d; }
+    .gen-select { width: 100%; background: #12121a; border: 1px solid #2a2a3a; border-radius: 7px; padding: 8px 10px; color: #e0e0e0; font-size: 12px; outline: none; margin-bottom: 14px; }
+    .gen-select:focus { border-color: #fc3f1d; }
+    .gen-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: flex-end; }
+    .gen-field { flex: 1; }
+    .gen-input { width: 100%; background: #12121a; border: 1px solid #2a2a3a; border-radius: 7px; padding: 8px 10px; color: #e0e0e0; font-size: 12px; outline: none; color-scheme: dark; }
+    .gen-input:focus { border-color: #fc3f1d; }
+    .gen-status { font-size: 12px; color: #888; flex: 1; }
+    .gen-status.err { color: #f08080; }
+    .sug-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1e1e2a; }
+    .sug-item:last-child { border-bottom: none; }
+    .sug-check { margin-top: 2px; accent-color: #fc3f1d; width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+    .sug-phrase { font-size: 12px; color: #ccc; font-family: monospace; }
+    .sug-reason { font-size: 11px; color: #555; margin-top: 2px; }
+    .preset-row { display: flex; gap: 6px; margin-bottom: 14px; }
+
+    @media (max-width: 800px) { .neg-section { grid-template-columns: 1fr; } }
+
     @media (max-width: 1000px) {
       .charts-grid { grid-template-columns: 1fr 1fr; }
       .main-grid   { grid-template-columns: 1fr; }
@@ -370,6 +421,93 @@
   </div>
 </div>
 
+<!-- Negatives section -->
+<div class="container" style="padding-top:0">
+  <div class="neg-section">
+    <div class="neg-card">
+      <div class="neg-card-header">
+        <span class="neg-card-title">Минус-фразы кампании</span>
+        <div class="neg-card-actions">
+          <button class="neg-btn" onclick="openAddNeg('campaign')">+ Добавить</button>
+          <button class="neg-btn primary" onclick="openAnalyzeNeg()">✦ Умная очистка</button>
+        </div>
+      </div>
+      <div class="neg-body" id="campNegBody"><div class="neg-loading">Загружаем…</div></div>
+    </div>
+    <div class="neg-card">
+      <div class="neg-card-header">
+        <span class="neg-card-title">Минус-фразы групп</span>
+      </div>
+      <div id="groupNegBody"><div class="neg-body"><div class="neg-loading">Загружаем…</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add negatives modal -->
+<div class="gen-overlay" id="addNegOverlay" onclick="closeGenModal('addNegOverlay',event)">
+  <div class="gen-modal">
+    <div class="gen-header">
+      <span class="gen-title" id="addNegTitle">Добавить минус-фразы</span>
+      <button class="gen-close" onclick="closeModal('addNegOverlay')">×</button>
+    </div>
+    <div class="gen-body">
+      <label class="gen-label">Уровень</label>
+      <select class="gen-select" id="addNegLevel" onchange="onLevelChange()">
+        <option value="campaign">Кампания (для всех групп)</option>
+        <option value="group">Группа объявлений</option>
+      </select>
+      <div id="groupSelectWrap" style="display:none">
+        <label class="gen-label">Группа объявлений</label>
+        <select class="gen-select" id="addNegGroup"></select>
+      </div>
+      <label class="gen-label">Фразы (каждая с новой строки)</label>
+      <textarea class="gen-textarea" id="addNegText" placeholder="купить бесплатно&#10;своими руками&#10;скачать"></textarea>
+    </div>
+    <div class="gen-footer">
+      <span class="gen-status" id="addNegStatus"></span>
+      <button class="neg-btn" onclick="closeModal('addNegOverlay')">Отмена</button>
+      <button class="neg-btn primary" onclick="submitAddNeg()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Analyze negatives modal -->
+<div class="gen-overlay" id="analyzeNegOverlay" onclick="closeGenModal('analyzeNegOverlay',event)">
+  <div class="gen-modal" style="width:640px">
+    <div class="gen-header">
+      <span class="gen-title">✦ Умная очистка — минус-фразы</span>
+      <button class="gen-close" onclick="closeModal('analyzeNegOverlay')">×</button>
+    </div>
+    <div class="gen-body" id="analyzeNegBody">
+      <div class="preset-row">
+        <button class="neg-btn" onclick="setNegPreset(7)">7 дней</button>
+        <button class="neg-btn" onclick="setNegPreset(30)">30 дней</button>
+        <button class="neg-btn" onclick="setNegPreset(90)">90 дней</button>
+      </div>
+      <div class="gen-row">
+        <div class="gen-field">
+          <label class="gen-label">С</label>
+          <input type="date" class="gen-input" id="negDateFrom" style="color-scheme:dark">
+        </div>
+        <div class="gen-field">
+          <label class="gen-label">По</label>
+          <input type="date" class="gen-input" id="negDateTo" style="color-scheme:dark">
+        </div>
+      </div>
+      <div id="suggestionsWrap" style="display:none">
+        <div style="font-size:12px;color:#888;margin-bottom:10px">Claude предлагает добавить в минус-фразы кампании:</div>
+        <div id="suggestionsList"></div>
+      </div>
+    </div>
+    <div class="gen-footer">
+      <span class="gen-status" id="analyzeNegStatus"></span>
+      <button class="neg-btn" onclick="closeModal('analyzeNegOverlay')">Отмена</button>
+      <button class="neg-btn" id="btnRunAnalysis" onclick="runNegAnalysis()">Анализировать</button>
+      <button class="neg-btn primary" id="btnApplySug" style="display:none" onclick="applySuggestions()">Добавить выбранные</button>
+    </div>
+  </div>
+</div>
+
 <!-- Keywords modal -->
 <div class="kw-overlay" id="kwOverlay" onclick="closeKw(event)">
   <div class="kw-modal">
@@ -562,7 +700,6 @@
   }
   function closeKwModal() { document.getElementById('kwOverlay').classList.remove('open'); }
   function closeKw(e) { if (e.target === document.getElementById('kwOverlay')) closeKwModal(); }
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeKwModal(); });
 
   function useHint(el) {
     document.getElementById('customQuestion').value = el.textContent;
@@ -633,6 +770,188 @@
   renderTable();
   updateSortHeaders();
   initCharts();
+
+  // ── Negatives ──
+  let _negGroups = [];
+
+  async function loadNegatives() {
+    try {
+      const r = await fetch(`/api/negatives/${CAMPAIGN_ID}`);
+      const data = await r.json();
+      if (!data.ok) { setNegError(data.error); return; }
+      _negGroups = data.groups;
+      renderCampNeg(data.campaign_negatives);
+      renderGroupNeg(data.groups);
+      populateGroupSelect(data.groups);
+    } catch { setNegError('Ошибка сети'); }
+  }
+
+  function setNegError(msg) {
+    document.getElementById('campNegBody').innerHTML = `<div class="neg-empty">${msg}</div>`;
+    document.getElementById('groupNegBody').innerHTML = `<div class="neg-body"><div class="neg-empty">${msg}</div></div>`;
+  }
+
+  function renderCampNeg(negatives) {
+    const el = document.getElementById('campNegBody');
+    if (!negatives.length) { el.innerHTML = '<div class="neg-chips"><span class="neg-empty">Нет минус-фраз</span></div>'; return; }
+    el.innerHTML = '<div class="neg-chips">' + negatives.map(n => `<span class="neg-chip">${n}</span>`).join('') + '</div>';
+  }
+
+  function renderGroupNeg(groups) {
+    const el = document.getElementById('groupNegBody');
+    if (!groups.length) { el.innerHTML = '<div class="neg-body"><div class="neg-empty">Нет групп</div></div>'; return; }
+    el.innerHTML = groups.map(g => `
+      <div class="neg-group">
+        <div class="neg-group-name">
+          <span>${g.name}</span>
+          <span style="display:flex;gap:6px;align-items:center">
+            <span class="neg-count">${g.negatives.length} фраз</span>
+            <button class="neg-btn" style="padding:2px 8px;font-size:10px" onclick="openAddNegGroup(${g.id},'${g.name.replace(/'/g,"\\'")}',${JSON.stringify(g.negatives)})">+ Добавить</button>
+          </span>
+        </div>
+        <div class="neg-group-chips">${g.negatives.length ? g.negatives.map(n => `<span class="neg-chip">${n}</span>`).join('') : '<span class="neg-empty">нет</span>'}</div>
+      </div>`).join('');
+  }
+
+  function populateGroupSelect(groups) {
+    const sel = document.getElementById('addNegGroup');
+    sel.innerHTML = groups.map(g => `<option value="${g.id}" data-neg='${JSON.stringify(g.negatives)}'>${g.name}</option>`).join('');
+  }
+
+  function openAddNeg(level) {
+    document.getElementById('addNegLevel').value = level;
+    document.getElementById('addNegText').value = '';
+    document.getElementById('addNegStatus').textContent = '';
+    document.getElementById('addNegTitle').textContent = level === 'campaign' ? 'Добавить минус-фразы в кампанию' : 'Добавить минус-фразы в группу';
+    document.getElementById('groupSelectWrap').style.display = level === 'group' ? 'block' : 'none';
+    document.getElementById('addNegOverlay').classList.add('open');
+  }
+
+  function openAddNegGroup(id, name, currentNeg) {
+    const sel = document.getElementById('addNegGroup');
+    document.getElementById('addNegLevel').value = 'group';
+    document.getElementById('addNegText').value = '';
+    document.getElementById('addNegStatus').textContent = '';
+    document.getElementById('addNegTitle').textContent = `Минус-фразы — ${name}`;
+    document.getElementById('groupSelectWrap').style.display = 'block';
+    sel.value = id;
+    document.getElementById('addNegOverlay').classList.add('open');
+  }
+
+  function onLevelChange() {
+    const level = document.getElementById('addNegLevel').value;
+    document.getElementById('groupSelectWrap').style.display = level === 'group' ? 'block' : 'none';
+  }
+
+  async function submitAddNeg() {
+    const phrases = document.getElementById('addNegText').value.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!phrases.length) { document.getElementById('addNegStatus').textContent = 'Введите хотя бы одну фразу'; return; }
+    const level = document.getElementById('addNegLevel').value;
+    const statusEl = document.getElementById('addNegStatus');
+    statusEl.textContent = 'Сохраняем…'; statusEl.className = 'gen-status';
+
+    let url, body;
+    if (level === 'campaign') {
+      url = `/api/negatives/${CAMPAIGN_ID}/campaign`;
+      body = {phrases};
+    } else {
+      const sel = document.getElementById('addNegGroup');
+      const opt = sel.options[sel.selectedIndex];
+      const current = JSON.parse(opt.dataset.neg || '[]');
+      url = `/api/negatives/group/${sel.value}`;
+      body = {phrases, current};
+    }
+    try {
+      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+      const data = await r.json();
+      if (data.ok) {
+        statusEl.textContent = `Добавлено. Всего фраз: ${data.total}`;
+        await loadNegatives();
+        setTimeout(() => closeModal('addNegOverlay'), 1200);
+      } else { statusEl.textContent = data.error; statusEl.className = 'gen-status err'; }
+    } catch { statusEl.textContent = 'Ошибка сети'; statusEl.className = 'gen-status err'; }
+  }
+
+  function setNegPreset(days) {
+    const to = new Date(), from = new Date();
+    from.setDate(from.getDate() - days);
+    document.getElementById('negDateTo').value = to.toISOString().slice(0,10);
+    document.getElementById('negDateFrom').value = from.toISOString().slice(0,10);
+  }
+
+  function openAnalyzeNeg() {
+    setNegPreset(30);
+    document.getElementById('suggestionsWrap').style.display = 'none';
+    document.getElementById('btnApplySug').style.display = 'none';
+    document.getElementById('btnRunAnalysis').style.display = '';
+    document.getElementById('analyzeNegStatus').textContent = '';
+    document.getElementById('analyzeNegOverlay').classList.add('open');
+  }
+
+  async function runNegAnalysis() {
+    const date_from = document.getElementById('negDateFrom').value;
+    const date_to = document.getElementById('negDateTo').value;
+    if (!date_from || !date_to) { document.getElementById('analyzeNegStatus').textContent = 'Укажите период'; return; }
+    const statusEl = document.getElementById('analyzeNegStatus');
+    statusEl.textContent = 'Claude анализирует запросы…'; statusEl.className = 'gen-status';
+    document.getElementById('btnRunAnalysis').disabled = true;
+    document.getElementById('suggestionsWrap').style.display = 'none';
+    try {
+      const r = await fetch(`/api/negatives/${CAMPAIGN_ID}/analyze`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({date_from, date_to})
+      });
+      const data = await r.json();
+      if (!data.ok) { statusEl.textContent = data.error; statusEl.className = 'gen-status err'; return; }
+      if (!data.suggestions.length) { statusEl.textContent = 'Claude не нашёл нерелевантных запросов — кампания чистая!'; return; }
+      statusEl.textContent = `Claude нашёл ${data.suggestions.length} предложений:`;
+      document.getElementById('suggestionsList').innerHTML = data.suggestions.map((s, i) => `
+        <div class="sug-item">
+          <input type="checkbox" class="sug-check" id="sug${i}" checked>
+          <div>
+            <div class="sug-phrase">${s.phrase}</div>
+            <div class="sug-reason">${s.reason}</div>
+          </div>
+        </div>`).join('');
+      document.getElementById('suggestionsWrap').style.display = 'block';
+      document.getElementById('btnApplySug').style.display = '';
+      document.getElementById('btnApplySug').dataset.suggestions = JSON.stringify(data.suggestions);
+    } catch { statusEl.textContent = 'Ошибка сети'; statusEl.className = 'gen-status err'; }
+    finally { document.getElementById('btnRunAnalysis').disabled = false; }
+  }
+
+  async function applySuggestions() {
+    const all = JSON.parse(document.getElementById('btnApplySug').dataset.suggestions);
+    const selected = all.filter((_, i) => document.getElementById(`sug${i}`)?.checked).map(s => s.phrase);
+    if (!selected.length) { document.getElementById('analyzeNegStatus').textContent = 'Ничего не выбрано'; return; }
+    const statusEl = document.getElementById('analyzeNegStatus');
+    statusEl.textContent = 'Добавляем…'; statusEl.className = 'gen-status';
+    try {
+      const r = await fetch(`/api/negatives/${CAMPAIGN_ID}/campaign`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({phrases: selected})
+      });
+      const data = await r.json();
+      if (data.ok) {
+        statusEl.textContent = `Готово! Добавлено ${selected.length} фраз. Всего: ${data.total}`;
+        await loadNegatives();
+        document.getElementById('btnApplySug').style.display = 'none';
+        document.getElementById('btnRunAnalysis').style.display = '';
+      } else { statusEl.textContent = data.error; statusEl.className = 'gen-status err'; }
+    } catch { statusEl.textContent = 'Ошибка сети'; statusEl.className = 'gen-status err'; }
+  }
+
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  function closeGenModal(id, e) { if (e.target === document.getElementById(id)) closeModal(id); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeKwModal();
+      closeModal('addNegOverlay');
+      closeModal('analyzeNegOverlay');
+    }
+  });
+
+  loadNegatives();
 </script>
 </body>
 </html>

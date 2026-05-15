@@ -156,6 +156,119 @@ def get_campaign_stats(
     return result, daily
 
 
+def get_negatives(token: str, campaign_id: int) -> dict:
+    """Returns campaign-level and adgroup-level negative keywords."""
+    sess = requests.Session()
+    sess.trust_env = False
+    h = _headers(token)
+
+    camp_resp = sess.post(
+        DIRECT_API_URL + "campaigns",
+        json={"method": "get", "params": {
+            "SelectionCriteria": {"Ids": [campaign_id]},
+            "FieldNames": ["Id", "Name", "NegativeKeywords"],
+        }},
+        headers=h,
+    )
+    camps = camp_resp.json().get("result", {}).get("Campaigns", [])
+    camp_neg = camps[0].get("NegativeKeywords", []) if camps else []
+
+    grp_resp = sess.post(
+        DIRECT_API_URL + "adgroups",
+        json={"method": "get", "params": {
+            "SelectionCriteria": {"CampaignIds": [campaign_id]},
+            "FieldNames": ["Id", "Name", "NegativeKeywords"],
+            "Page": {"Limit": 1000},
+        }},
+        headers=h,
+    )
+    groups = grp_resp.json().get("result", {}).get("AdGroups", [])
+
+    return {
+        "campaign_negatives": camp_neg,
+        "groups": [
+            {"id": g["Id"], "name": g["Name"], "negatives": g.get("NegativeKeywords", [])}
+            for g in groups
+        ],
+    }
+
+
+def update_campaign_negatives(token: str, campaign_id: int, negatives: list) -> None:
+    sess = requests.Session()
+    sess.trust_env = False
+    resp = sess.post(
+        DIRECT_API_URL + "campaigns",
+        json={"method": "update", "params": {"Campaigns": [{"Id": campaign_id, "NegativeKeywords": negatives}]}},
+        headers=_headers(token),
+    )
+    err = resp.json().get("error")
+    if err:
+        raise Exception(err.get("error_detail") or err.get("error_string", "Ошибка API"))
+
+
+def update_adgroup_negatives(token: str, adgroup_id: int, negatives: list) -> None:
+    sess = requests.Session()
+    sess.trust_env = False
+    resp = sess.post(
+        DIRECT_API_URL + "adgroups",
+        json={"method": "update", "params": {"AdGroups": [{"Id": adgroup_id, "NegativeKeywords": negatives}]}},
+        headers=_headers(token),
+    )
+    err = resp.json().get("error")
+    if err:
+        raise Exception(err.get("error_detail") or err.get("error_string", "Ошибка API"))
+
+
+def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: str) -> list[dict]:
+    """Returns aggregated search queries for a campaign over a date range."""
+    payload = {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {
+                "DateFrom": date_from,
+                "DateTo": date_to,
+                "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
+            },
+            "FieldNames": ["Query", "Impressions", "Clicks", "Cost"],
+            "ReportName": f"sq_{campaign_id}_{date_from}_{date_to}",
+            "ReportType": "SEARCH_QUERY_PERFORMANCE_REPORT",
+            "DateRangeType": "CUSTOM_DATE",
+            "Format": "TSV",
+            "IncludeVAT": "YES",
+            "IncludeDiscount": "NO",
+        },
+    }
+    headers = _headers(token)
+    headers["processingMode"] = "auto"
+    headers["returnMoneyInMicros"] = "false"
+
+    sess = requests.Session()
+    sess.trust_env = False
+    resp = sess.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
+    if resp.status_code not in (200, 201, 202):
+        raise Exception(f"Reports API: HTTP {resp.status_code}")
+
+    agg: dict[str, dict] = {}
+    for line in resp.text.strip().split("\n")[2:]:
+        parts = line.split("\t")
+        if len(parts) < 4:
+            continue
+        try:
+            q = parts[0]
+            if q not in agg:
+                agg[q] = {"query": q, "impressions": 0, "clicks": 0, "cost": 0.0}
+            agg[q]["impressions"] += int(parts[1]) if parts[1] != "--" else 0
+            agg[q]["clicks"] += int(parts[2]) if parts[2] != "--" else 0
+            agg[q]["cost"] += float(parts[3]) if parts[3] != "--" else 0.0
+        except (ValueError, IndexError):
+            continue
+
+    result = sorted(agg.values(), key=lambda x: x["impressions"], reverse=True)[:300]
+    for r in result:
+        r["cost"] = round(r["cost"], 2)
+    return result
+
+
 def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
     """Returns search queries for a campaign on a specific date, sorted by clicks desc."""
     payload = {

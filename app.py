@@ -6,7 +6,10 @@ from functools import wraps
 from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, render_template, request, session
 
-from direct_client import get_campaigns, get_campaigns_by_ids, get_campaign_stats, get_keyword_stats
+from direct_client import (
+    get_campaigns, get_campaigns_by_ids, get_campaign_stats, get_keyword_stats,
+    get_negatives, update_campaign_negatives, update_adgroup_negatives, get_search_queries,
+)
 
 load_dotenv()
 
@@ -694,6 +697,100 @@ def analyze_campaign(campaign_id):
     title = question.strip() if question.strip() else _extract_title(analysis)
     save_to_history(analysis, question, campaign_id=campaign_id)
     return jsonify({"ok": True, "analysis": analysis, "title": title, "is_question": bool(question.strip())})
+
+
+@app.route("/api/negatives/<int:campaign_id>")
+@login_required
+def get_negatives_endpoint(campaign_id):
+    try:
+        return jsonify({"ok": True, **get_negatives(DIRECT_TOKEN, campaign_id)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/negatives/<int:campaign_id>/campaign", methods=["POST"])
+@login_required
+def add_campaign_negatives(campaign_id):
+    phrases = [p.strip().lower() for p in request.json.get("phrases", []) if p.strip()]
+    if not phrases:
+        return jsonify({"ok": False, "error": "Нет фраз"}), 400
+    try:
+        data = get_negatives(DIRECT_TOKEN, campaign_id)
+        merged = list(dict.fromkeys(data["campaign_negatives"] + phrases))
+        update_campaign_negatives(DIRECT_TOKEN, campaign_id, merged)
+        return jsonify({"ok": True, "total": len(merged)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/negatives/group/<int:adgroup_id>", methods=["POST"])
+@login_required
+def add_adgroup_negatives(adgroup_id):
+    phrases = [p.strip().lower() for p in request.json.get("phrases", []) if p.strip()]
+    current = request.json.get("current", [])
+    if not phrases:
+        return jsonify({"ok": False, "error": "Нет фраз"}), 400
+    try:
+        merged = list(dict.fromkeys(current + phrases))
+        update_adgroup_negatives(DIRECT_TOKEN, adgroup_id, merged)
+        return jsonify({"ok": True, "total": len(merged)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/negatives/<int:campaign_id>/analyze", methods=["POST"])
+@login_required
+def analyze_negatives(campaign_id):
+    if not ANTHROPIC_API_KEY:
+        return jsonify({"ok": False, "error": "API ключ Claude не настроен"}), 503
+    date_from = request.json.get("date_from", "")
+    date_to = request.json.get("date_to", "")
+    if not date_from or not date_to:
+        return jsonify({"ok": False, "error": "Укажите период"}), 400
+    try:
+        neg_data = get_negatives(DIRECT_TOKEN, campaign_id)
+        queries = get_search_queries(DIRECT_TOKEN, campaign_id, date_from, date_to)
+        camp_neg = neg_data["campaign_negatives"]
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    neg_str = "\n".join(camp_neg) if camp_neg else "не установлены"
+    rows = "\n".join(f"{q['query']} | {q['impressions']} показов | {q['clicks']} кликов | {q['cost']} ₽"
+                     for q in queries[:200])
+    if not rows:
+        return jsonify({"ok": False, "error": "Нет поисковых запросов за период"}), 400
+
+    system = ("Ты — аналитик Яндекс.Директ. Найди нерелевантные поисковые запросы для добавления в минус-фразы. "
+              "Верни ТОЛЬКО JSON-массив: [{\"phrase\":\"текст\",\"reason\":\"пояснение\"}]. "
+              "Не включай то, что уже есть в минус-фразах. Максимум 30 предложений.")
+    user_msg = (f"Период: {date_from} — {date_to}\n\n"
+                f"Текущие минус-фразы кампании:\n{neg_str}\n\n"
+                f"Поисковые запросы (запрос | показы | клики | расход):\n{rows}")
+
+    import anthropic, httpx
+    _proxy = os.getenv("HTTPS_PROXY")
+    _http_client = httpx.Client(proxy=_proxy) if _proxy else None
+    claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=_http_client)
+    try:
+        resp = claude.messages.create(
+            model="claude-sonnet-4-6", max_tokens=2000,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+    except anthropic.APIError as e:
+        return jsonify({"ok": False, "error": f"Claude: {e.status_code} — {e.message}"}), 200
+
+    import re
+    text = resp.content[0].text
+    m = re.search(r"\[.*\]", text, re.DOTALL)
+    if not m:
+        return jsonify({"ok": False, "error": "Claude вернул неожиданный формат"}), 200
+    try:
+        suggestions = json.loads(m.group())
+    except json.JSONDecodeError:
+        return jsonify({"ok": False, "error": "Ошибка разбора ответа Claude"}), 200
+
+    return jsonify({"ok": True, "suggestions": suggestions, "current_negatives": camp_neg})
 
 
 @app.route("/api/keywords/<int:campaign_id>/<date>")
