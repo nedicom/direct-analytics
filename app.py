@@ -708,6 +708,24 @@ def get_negatives_endpoint(campaign_id):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route("/api/debug/campaign/<int:campaign_id>")
+@login_required
+def debug_campaign(campaign_id):
+    import requests as req
+    from direct_client import DIRECT_API_URL, _headers
+    sess = req.Session()
+    sess.trust_env = False
+    resp = sess.post(
+        DIRECT_API_URL + "campaigns",
+        json={"method": "get", "params": {
+            "SelectionCriteria": {"Ids": [campaign_id]},
+            "FieldNames": ["Id", "Name", "Type", "NegativeKeywords", "NegativeKeywordSharedSets"],
+        }},
+        headers=_headers(DIRECT_TOKEN),
+    )
+    return jsonify(resp.json())
+
+
 @app.route("/api/negatives/<int:campaign_id>/campaign", methods=["POST"])
 @login_required
 def add_campaign_negatives(campaign_id):
