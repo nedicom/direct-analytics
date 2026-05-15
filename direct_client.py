@@ -219,7 +219,7 @@ def update_campaign_negatives(token: str, campaign_id: int, negatives: list) -> 
     sess.trust_env = False
     resp = sess.post(
         DIRECT_API_URL + "campaigns",
-        json={"method": "update", "params": {"Campaigns": [{"Id": campaign_id, "NegativeKeywords": negatives}]}},
+        json={"method": "update", "params": {"Campaigns": [{"Id": campaign_id, "NegativeKeywords": {"Items": negatives}}]}},
         headers=_headers(token),
     )
     err = resp.json().get("error")
@@ -232,7 +232,7 @@ def update_adgroup_negatives(token: str, adgroup_id: int, negatives: list) -> No
     sess.trust_env = False
     resp = sess.post(
         DIRECT_API_URL + "adgroups",
-        json={"method": "update", "params": {"AdGroups": [{"Id": adgroup_id, "NegativeKeywords": negatives}]}},
+        json={"method": "update", "params": {"AdGroups": [{"Id": adgroup_id, "NegativeKeywords": {"Items": negatives}}]}},
         headers=_headers(token),
     )
     err = resp.json().get("error")
