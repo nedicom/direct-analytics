@@ -800,13 +800,13 @@
   function renderGroupNeg(groups) {
     const el = document.getElementById('groupNegBody');
     if (!groups.length) { el.innerHTML = '<div class="neg-body"><div class="neg-empty">Нет групп</div></div>'; return; }
-    el.innerHTML = groups.map(g => `
+    el.innerHTML = groups.map((g, i) => `
       <div class="neg-group">
         <div class="neg-group-name">
           <span>${g.name}</span>
           <span style="display:flex;gap:6px;align-items:center">
             <span class="neg-count">${g.negatives.length} фраз</span>
-            <button class="neg-btn" style="padding:2px 8px;font-size:10px" onclick="openAddNegGroup(${g.id},'${g.name.replace(/'/g,"\\'")}',${JSON.stringify(g.negatives)})">+ Добавить</button>
+            <button class="neg-btn" style="padding:2px 8px;font-size:10px" onclick="openAddNegGroupIdx(${i})">+ Добавить</button>
           </span>
         </div>
         <div class="neg-group-chips">${g.negatives.length ? g.negatives.map(n => `<span class="neg-chip">${n}</span>`).join('') : '<span class="neg-empty">нет</span>'}</div>
@@ -827,14 +827,15 @@
     document.getElementById('addNegOverlay').classList.add('open');
   }
 
-  function openAddNegGroup(id, name, currentNeg) {
+  function openAddNegGroupIdx(idx) {
+    const g = _negGroups[idx];
     const sel = document.getElementById('addNegGroup');
     document.getElementById('addNegLevel').value = 'group';
     document.getElementById('addNegText').value = '';
     document.getElementById('addNegStatus').textContent = '';
-    document.getElementById('addNegTitle').textContent = `Минус-фразы — ${name}`;
+    document.getElementById('addNegTitle').textContent = `Минус-фразы — ${g.name}`;
     document.getElementById('groupSelectWrap').style.display = 'block';
-    sel.value = id;
+    sel.value = g.id;
     document.getElementById('addNegOverlay').classList.add('open');
   }
 

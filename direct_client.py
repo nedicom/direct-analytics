@@ -227,9 +227,8 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
             "SelectionCriteria": {
                 "DateFrom": date_from,
                 "DateTo": date_to,
-                "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
             },
-            "FieldNames": ["Query", "Impressions", "Clicks", "Cost"],
+            "FieldNames": ["CampaignId", "Query", "Impressions", "Clicks", "Cost"],
             "ReportName": f"sq_{campaign_id}_{date_from}_{date_to}",
             "ReportType": "SEARCH_QUERY_PERFORMANCE_REPORT",
             "DateRangeType": "CUSTOM_DATE",
@@ -257,18 +256,21 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
             msg = body[:300] or f"HTTP {resp.status_code}"
         raise Exception(f"Reports API: {msg}")
 
+    # Columns: CampaignId(0), Query(1), Impressions(2), Clicks(3), Cost(4)
     agg: dict[str, dict] = {}
     for line in body.split("\n")[2:]:
         parts = line.split("\t")
-        if len(parts) < 4 or parts[0] == "Total":
+        if len(parts) < 5 or parts[0] == "Total":
             continue
         try:
-            q = parts[0]
+            if int(parts[0]) != campaign_id:
+                continue
+            q = parts[1]
             if q not in agg:
                 agg[q] = {"query": q, "impressions": 0, "clicks": 0, "cost": 0.0}
-            agg[q]["impressions"] += int(parts[1]) if parts[1] != "--" else 0
-            agg[q]["clicks"] += int(parts[2]) if parts[2] != "--" else 0
-            agg[q]["cost"] += float(parts[3]) if parts[3] != "--" else 0.0
+            agg[q]["impressions"] += int(parts[2]) if parts[2] != "--" else 0
+            agg[q]["clicks"] += int(parts[3]) if parts[3] != "--" else 0
+            agg[q]["cost"] += float(parts[4]) if parts[4] != "--" else 0.0
         except (ValueError, IndexError):
             continue
 
