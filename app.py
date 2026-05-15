@@ -719,7 +719,7 @@ def debug_campaign(campaign_id):
         DIRECT_API_URL + "campaigns",
         json={"method": "get", "params": {
             "SelectionCriteria": {"Ids": [campaign_id]},
-            "FieldNames": ["Id", "Name", "Type", "NegativeKeywords", "NegativeKeywordSharedSets"],
+            "FieldNames": ["Id", "Name", "Type", "NegativeKeywords"],
         }},
         headers=_headers(DIRECT_TOKEN),
     )
