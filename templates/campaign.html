@@ -332,7 +332,7 @@
         {% if history %}
         <div class="history-list">
           {% for h in history | reverse %}
-          <div class="history-item" onclick="showHistory({{ h.analysis|tojson }}, {{ (h.get('title') or '')|tojson }}, {{ 'true' if h.get('is_question') else 'false' }})">
+          <div class="history-item" onclick="showHistoryItem({{ loop.index0 }})">
             <div class="history-date">{{ h.date }}{% if h.get('is_question') %} · <span style="color:#fc3f1d">вопрос</span>{% endif %}</div>
             <div class="history-preview">{% if h.get('is_question') %}💬 {% endif %}{{ h.get('title') or h.analysis[:60] }}</div>
           </div>
@@ -349,6 +349,7 @@
 
 <script>
   const CAMPAIGN_ID  = {{ campaign_id }};
+  const HISTORY_DATA = {{ (history | reverse | list) | tojson }};
   const CHART_LABELS = {{ chart_labels      | safe }};
   const CHART_COSTS  = {{ chart_costs       | safe }};
   const CHART_CLICKS = {{ chart_clicks      | safe }};
@@ -477,6 +478,10 @@
   function showHistory(text, title, isQuestion) {
     showAnalysis(text, title, isQuestion);
     document.getElementById('analysisBox').scrollIntoView({behavior:'smooth'});
+  }
+  function showHistoryItem(idx) {
+    const h = HISTORY_DATA[idx];
+    showHistory(h.analysis, h.title || '', !!h.is_question);
   }
 
   function useHint(el) {

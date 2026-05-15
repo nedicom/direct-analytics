@@ -36,7 +36,10 @@ def login_required(f):
 def _load_all_history() -> list:
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE, encoding="utf-8") as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
     return []
 
 
