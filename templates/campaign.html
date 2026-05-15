@@ -156,7 +156,13 @@
     .neg-btn.primary:hover { opacity: 0.85; }
     .neg-body { padding: 14px 16px; min-height: 80px; }
     .neg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .neg-chip { font-size: 11px; background: #12121a; border: 1px solid #2a2a3a; border-radius: 4px; padding: 3px 8px; color: #777; font-family: monospace; }
+    .neg-chip { font-size: 11px; background: #12121a; border: 1px solid #2a2a3a; border-radius: 4px; padding: 2px 4px 2px 8px; color: #777; font-family: monospace; display: inline-flex; align-items: center; gap: 3px; }
+    .neg-chip-text { cursor: pointer; }
+    .neg-chip-text:hover { color: #ccc; }
+    .neg-chip-del { background: none; border: none; color: #333; cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1; }
+    .neg-chip-del:hover { color: #f08080; }
+    .neg-chip-editing { font-size: 11px; background: #12121a; border: 1px solid #fc3f1d; border-radius: 4px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 4px; }
+    .neg-chip-input { background: none; border: none; color: #e0e0e0; font-size: 11px; font-family: monospace; outline: none; min-width: 120px; }
     .neg-empty { color: #444; font-size: 12px; font-style: italic; }
     .neg-loading { color: #555; font-size: 12px; }
     .neg-group { border-bottom: 1px solid #1e1e2a; padding: 10px 16px; }
@@ -346,8 +352,10 @@
   <!-- Toolbar -->
   <div class="toolbar">
     <button class="btn btn-primary" id="btnAnalyze" onclick="analyzeData()">✦ Анализ Claude</button>
+    <button class="pbtn" onclick="applyFilter()" title="Загрузить свежие данные из Яндекс.Директ" style="margin-left:4px">↻ Обновить</button>
     <div class="spinner" id="spinner"></div>
     <span class="status-txt" id="statusTxt"></span>
+    <span style="margin-left:auto;font-size:11px;color:#333" title="Данные за сегодня могут отставать на 2–4 часа из-за задержки отчётов Яндекс.Директ">Загружено: {{ now }}</span>
   </div>
 
   <!-- Main grid: daily table | sidebar -->
@@ -778,7 +786,7 @@
   initCharts();
 
   // ── Negatives ──
-  let _negGroups = [];
+  let _negGroups = [], _campNeg = [];
 
   async function loadNegatives() {
     try {
@@ -797,30 +805,129 @@
     document.getElementById('groupNegBody').innerHTML = `<div class="neg-body"><div class="neg-empty">${msg}</div></div>`;
   }
 
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escAttr(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  }
+
   function renderCampNeg(negatives) {
+    _campNeg = negatives || [];
     const el = document.getElementById('campNegBody');
-    const neg = negatives || [];
-    if (!neg.length) { el.innerHTML = '<div class="neg-chips"><span class="neg-empty">Нет минус-фраз</span></div>'; return; }
-    el.innerHTML = '<div class="neg-chips">' + neg.map(n => `<span class="neg-chip">${n}</span>`).join('') + '</div>';
+    if (!_campNeg.length) { el.innerHTML = '<div class="neg-chips"><span class="neg-empty">Нет минус-фраз</span></div>'; return; }
+    el.innerHTML = '<div class="neg-chips">' + _campNeg.map((n, i) =>
+      `<span class="neg-chip" id="camp-chip-${i}">` +
+      `<span class="neg-chip-text" onclick="editCampChip(${i})">${escHtml(n)}</span>` +
+      `<button class="neg-chip-del" onclick="deleteCampNeg(${i})">×</button>` +
+      `</span>`
+    ).join('') + '</div>';
   }
 
   function renderGroupNeg(groups, groupsError) {
     const el = document.getElementById('groupNegBody');
     if (groupsError) { el.innerHTML = `<div class="neg-body"><div class="neg-empty" style="color:#f08080">${groupsError}</div></div>`; return; }
     if (!groups.length) { el.innerHTML = '<div class="neg-body"><div class="neg-empty">Нет групп</div></div>'; return; }
-    el.innerHTML = groups.map((g, i) => {
+    el.innerHTML = groups.map((g, gi) => {
       const neg = Array.isArray(g.negatives) ? g.negatives : [];
+      const chips = neg.length
+        ? neg.map((n, pi) =>
+            `<span class="neg-chip" id="group-chip-${gi}-${pi}">` +
+            `<span class="neg-chip-text" onclick="editGroupChip(${gi},${pi})">${escHtml(n)}</span>` +
+            `<button class="neg-chip-del" onclick="deleteGroupNeg(${gi},${pi})">×</button>` +
+            `</span>`
+          ).join('')
+        : '<span class="neg-empty">нет</span>';
       return `<div class="neg-group">
         <div class="neg-group-name">
-          <span>${g.name}</span>
+          <span>${escHtml(g.name)}</span>
           <span style="display:flex;gap:6px;align-items:center">
             <span class="neg-count">${neg.length} фраз</span>
-            <button class="neg-btn" style="padding:2px 8px;font-size:10px" onclick="openAddNegGroupIdx(${i})">+ Добавить</button>
+            <button class="neg-btn" style="padding:2px 8px;font-size:10px" onclick="openAddNegGroupIdx(${gi})">+ Добавить</button>
           </span>
         </div>
-        <div class="neg-group-chips">${neg.length ? neg.map(n => `<span class="neg-chip">${n}</span>`).join('') : '<span class="neg-empty">нет</span>'}</div>
+        <div class="neg-group-chips">${chips}</div>
       </div>`;
     }).join('');
+  }
+
+  function deleteCampNeg(i) {
+    saveCampNegs(_campNeg.filter((_, idx) => idx !== i));
+  }
+
+  function editCampChip(i) {
+    const chip = document.getElementById(`camp-chip-${i}`);
+    if (!chip) return;
+    const original = _campNeg[i];
+    chip.className = 'neg-chip-editing';
+    chip.innerHTML = `<input class="neg-chip-input" value="${escAttr(original)}">`;
+    const inp = chip.querySelector('input');
+    inp.focus(); inp.select();
+    let done = false;
+    function commit() {
+      if (done) return; done = true;
+      const val = inp.value.trim();
+      if (val && val !== original) { const u = [..._campNeg]; u[i] = val; saveCampNegs(u); }
+      else renderCampNeg(_campNeg);
+    }
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      else if (e.key === 'Escape') { done = true; renderCampNeg(_campNeg); }
+    });
+    inp.addEventListener('blur', () => setTimeout(commit, 120));
+  }
+
+  async function saveCampNegs(phrases) {
+    try {
+      const r = await fetch(`/api/negatives/${CAMPAIGN_ID}/set`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({phrases}),
+      });
+      const data = await r.json();
+      if (data.ok) { await loadNegatives(); }
+      else { alert('Ошибка: ' + data.error); renderCampNeg(_campNeg); }
+    } catch { alert('Ошибка сети'); renderCampNeg(_campNeg); }
+  }
+
+  function deleteGroupNeg(gi, pi) {
+    const neg = Array.isArray(_negGroups[gi]?.negatives) ? _negGroups[gi].negatives : [];
+    saveGroupNegs(gi, neg.filter((_, idx) => idx !== pi));
+  }
+
+  function editGroupChip(gi, pi) {
+    const chip = document.getElementById(`group-chip-${gi}-${pi}`);
+    if (!chip) return;
+    const neg = Array.isArray(_negGroups[gi]?.negatives) ? _negGroups[gi].negatives : [];
+    const original = neg[pi];
+    chip.className = 'neg-chip-editing';
+    chip.innerHTML = `<input class="neg-chip-input" value="${escAttr(original)}">`;
+    const inp = chip.querySelector('input');
+    inp.focus(); inp.select();
+    let done = false;
+    function commit() {
+      if (done) return; done = true;
+      const val = inp.value.trim();
+      if (val && val !== original) { const u = [...neg]; u[pi] = val; saveGroupNegs(gi, u); }
+      else renderGroupNeg(_negGroups, null);
+    }
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      else if (e.key === 'Escape') { done = true; renderGroupNeg(_negGroups, null); }
+    });
+    inp.addEventListener('blur', () => setTimeout(commit, 120));
+  }
+
+  async function saveGroupNegs(gi, phrases) {
+    const g = _negGroups[gi];
+    try {
+      const r = await fetch(`/api/negatives/group/${g.id}/set`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({phrases}),
+      });
+      const data = await r.json();
+      if (data.ok) { await loadNegatives(); }
+      else { alert('Ошибка: ' + data.error); renderGroupNeg(_negGroups, null); }
+    } catch { alert('Ошибка сети'); renderGroupNeg(_negGroups, null); }
   }
 
   function populateGroupSelect(groups) {
@@ -910,7 +1017,7 @@
     try {
       const r = await fetch(`/api/negatives/${CAMPAIGN_ID}/analyze`, {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({date_from, date_to})
+        body: JSON.stringify({date_from, date_to, current_negatives: _campNeg})
       });
       const data = await r.json();
       if (!data.ok) { statusEl.textContent = data.error; statusEl.className = 'gen-status err'; return; }

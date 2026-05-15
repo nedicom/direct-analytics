@@ -590,6 +590,7 @@ def campaign_detail(campaign_id):
         "campaign.html",
         campaign_id=campaign_id,
         campaign_name=campaign_name,
+        now=datetime.now().strftime("%d.%m.%Y %H:%M"),
         campaign_meta=campaign_meta,
         campaign_type=ctype,
         campaign_type_label=_CAMPAIGN_TYPE_LABELS.get(ctype, ctype),
@@ -765,12 +766,17 @@ def analyze_negatives(campaign_id):
     date_to = request.json.get("date_to", "")
     if not date_from or not date_to:
         return jsonify({"ok": False, "error": "Укажите период"}), 400
+    # Frontend sends the current negatives it knows about (guards against Yandex API update lag)
+    client_neg = [p.strip() for p in request.json.get("current_negatives", []) if p.strip()]
     try:
         neg_data = get_negatives(DIRECT_TOKEN, campaign_id)
         queries = get_search_queries(DIRECT_TOKEN, campaign_id, date_from, date_to)
         camp_neg = neg_data["campaign_negatives"]
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+    # Merge API result with client-provided list so recently added phrases are not re-suggested
+    camp_neg = list(dict.fromkeys(camp_neg + client_neg))
 
     neg_str = "\n".join(camp_neg) if camp_neg else "не установлены"
     rows = "\n".join(f"{q['query']} | {q['impressions']} показов | {q['clicks']} кликов | {q['cost']} ₽"
@@ -813,7 +819,46 @@ def analyze_negatives(campaign_id):
     except json.JSONDecodeError:
         return jsonify({"ok": False, "error": "Ошибка разбора ответа Claude"}), 200
 
+    def _norm(p):
+        return re.sub(r'\s+', ' ', re.sub(r'[!"+]', '', p)).strip().lower()
+
+    existing_norm = {_norm(n) for n in camp_neg}
+    # Single-word negatives already block any query containing that word
+    single_word_negs = {n for n in existing_norm if n and ' ' not in n}
+
+    def is_covered(phrase):
+        norm = _norm(phrase)
+        if not norm:
+            return True
+        if norm in existing_norm:
+            return True
+        return any(w in single_word_negs for w in norm.split())
+
+    suggestions = [s for s in suggestions if s.get("phrase", "").strip() and not is_covered(s["phrase"])]
+
     return jsonify({"ok": True, "suggestions": suggestions, "current_negatives": camp_neg})
+
+
+@app.route("/api/negatives/<int:campaign_id>/set", methods=["POST"])
+@login_required
+def set_campaign_negatives(campaign_id):
+    phrases = [p.strip() for p in request.json.get("phrases", []) if p.strip()]
+    try:
+        update_campaign_negatives(DIRECT_TOKEN, campaign_id, phrases)
+        return jsonify({"ok": True, "total": len(phrases)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/negatives/group/<int:adgroup_id>/set", methods=["POST"])
+@login_required
+def set_adgroup_negatives(adgroup_id):
+    phrases = [p.strip() for p in request.json.get("phrases", []) if p.strip()]
+    try:
+        update_adgroup_negatives(DIRECT_TOKEN, adgroup_id, phrases)
+        return jsonify({"ok": True, "total": len(phrases)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/api/keywords/<int:campaign_id>/<date>")
