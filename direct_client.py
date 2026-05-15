@@ -173,16 +173,25 @@ def get_negatives(token: str, campaign_id: int) -> dict:
     camps = camp_resp.json().get("result", {}).get("Campaigns", [])
     camp_neg = camps[0].get("NegativeKeywords", []) if camps else []
 
-    grp_resp = sess.post(
-        DIRECT_API_URL + "adgroups",
-        json={"method": "get", "params": {
-            "SelectionCriteria": {"CampaignIds": [campaign_id]},
-            "FieldNames": ["Id", "Name", "NegativeKeywords"],
-            "Page": {"Limit": 1000},
-        }},
-        headers=h,
-    )
-    groups = grp_resp.json().get("result", {}).get("AdGroups", [])
+    groups = []
+    groups_error = None
+    try:
+        grp_resp = sess.post(
+            DIRECT_API_URL + "adgroups",
+            json={"method": "get", "params": {
+                "SelectionCriteria": {"CampaignIds": [campaign_id]},
+                "FieldNames": ["Id", "Name", "NegativeKeywords"],
+                "Page": {"Limit": 1000},
+            }},
+            headers=h,
+        )
+        grp_data = grp_resp.json()
+        if "error" in grp_data:
+            groups_error = grp_data["error"].get("error_detail") or grp_data["error"].get("error_string", "Ошибка API групп")
+        else:
+            groups = grp_data.get("result", {}).get("AdGroups", []) or []
+    except Exception as e:
+        groups_error = str(e)
 
     return {
         "campaign_negatives": camp_neg or [],
@@ -190,6 +199,7 @@ def get_negatives(token: str, campaign_id: int) -> dict:
             {"id": g["Id"], "name": g["Name"], "negatives": g.get("NegativeKeywords") or []}
             for g in groups
         ],
+        "groups_error": groups_error,
     }
 
 

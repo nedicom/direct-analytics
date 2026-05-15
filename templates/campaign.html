@@ -779,11 +779,11 @@
       const r = await fetch(`/api/negatives/${CAMPAIGN_ID}`);
       const data = await r.json();
       if (!data.ok) { setNegError(data.error); return; }
-      _negGroups = data.groups;
+      _negGroups = data.groups || [];
       renderCampNeg(data.campaign_negatives);
-      renderGroupNeg(data.groups);
-      populateGroupSelect(data.groups);
-    } catch { setNegError('Ошибка сети'); }
+      renderGroupNeg(_negGroups, data.groups_error);
+      populateGroupSelect(_negGroups);
+    } catch(e) { setNegError('Ошибка: ' + e.message); }
   }
 
   function setNegError(msg) {
@@ -798,20 +798,23 @@
     el.innerHTML = '<div class="neg-chips">' + neg.map(n => `<span class="neg-chip">${n}</span>`).join('') + '</div>';
   }
 
-  function renderGroupNeg(groups) {
+  function renderGroupNeg(groups, groupsError) {
     const el = document.getElementById('groupNegBody');
+    if (groupsError) { el.innerHTML = `<div class="neg-body"><div class="neg-empty" style="color:#f08080">${groupsError}</div></div>`; return; }
     if (!groups.length) { el.innerHTML = '<div class="neg-body"><div class="neg-empty">Нет групп</div></div>'; return; }
-    el.innerHTML = groups.map((g, i) => `
-      <div class="neg-group">
+    el.innerHTML = groups.map((g, i) => {
+      const neg = Array.isArray(g.negatives) ? g.negatives : [];
+      return `<div class="neg-group">
         <div class="neg-group-name">
           <span>${g.name}</span>
           <span style="display:flex;gap:6px;align-items:center">
-            <span class="neg-count">${g.negatives.length} фраз</span>
+            <span class="neg-count">${neg.length} фраз</span>
             <button class="neg-btn" style="padding:2px 8px;font-size:10px" onclick="openAddNegGroupIdx(${i})">+ Добавить</button>
           </span>
         </div>
-        <div class="neg-group-chips">${(g.negatives||[]).length ? (g.negatives||[]).map(n => `<span class="neg-chip">${n}</span>`).join('') : '<span class="neg-empty">нет</span>'}</div>
-      </div>`).join('');
+        <div class="neg-group-chips">${neg.length ? neg.map(n => `<span class="neg-chip">${n}</span>`).join('') : '<span class="neg-empty">нет</span>'}</div>
+      </div>`;
+    }).join('');
   }
 
   function populateGroupSelect(groups) {
