@@ -21,7 +21,8 @@ DIRECT_TOKEN = os.getenv("DIRECT_TOKEN", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "")
 
-HISTORY_FILE = "history.json"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+HISTORY_FILE = os.path.join(_HERE, "history.json")
 
 SYSTEM_PROMPT = """Ты опытный аналитик рекламы в Яндекс.Директ. Помогаешь принимать решения на основе данных: какие кампании эффективны, где тратится бюджет впустую, как снизить стоимость клика и увеличить конверсии.
 
@@ -916,7 +917,7 @@ def search_queries_range(campaign_id):
 
 
 def _kw_cache_file(campaign_id):
-    return f"kw_cache_{campaign_id}.json"
+    return os.path.join(_HERE, f"kw_cache_{campaign_id}.json")
 
 def _read_kw_cache(campaign_id):
     path = _kw_cache_file(campaign_id)
