@@ -973,10 +973,9 @@
 
   function kwServingLabel(kw) {
     if (kw.status === 'REJECTED') return '<span class="serving-bad">Отклонено</span>';
+    if (kw.status === 'MODERATION') return '<span class="serving-low">Модерация</span>';
     if (kw.state === 'SUSPENDED' || kw.state === 'OFF') return '<span class="serving-unk">Пауза</span>';
-    if (kw.serving === 'ELIGIBLE') return '<span class="serving-ok">● Показывается</span>';
-    if (kw.serving === 'RARELY_SERVED') return '<span class="serving-low">● Редко</span>';
-    if (kw.serving === 'NOT_ELIGIBLE') return '<span class="serving-bad">● Не показ.</span>';
+    if (kw.state === 'ON' && kw.status === 'ACCEPTED') return '<span class="serving-ok">● Активна</span>';
     return '<span class="serving-unk">—</span>';
   }
 

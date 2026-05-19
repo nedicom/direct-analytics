@@ -419,7 +419,7 @@ def get_keyword_bids(token: str, campaign_id: int) -> list[dict]:
                 "method": "get",
                 "params": {
                     "SelectionCriteria": {"CampaignIds": [campaign_id]},
-                    "FieldNames": ["Id", "Keyword", "Status", "State", "ServingStatus"],
+                    "FieldNames": ["Id", "Keyword", "Status", "State"],
                     "BiddingFieldNames": ["Bid"],
                     "Page": {"Limit": 1000, "Offset": offset},
                 },
@@ -438,7 +438,6 @@ def get_keyword_bids(token: str, campaign_id: int) -> list[dict]:
                 "keyword": kw["Keyword"],
                 "status": kw.get("Status", ""),
                 "state": kw.get("State", ""),
-                "serving": kw.get("ServingStatus", ""),
                 "bid": round(float(bid), 2) if bid else None,
             })
         if not data.get("result", {}).get("LimitedBy"):
