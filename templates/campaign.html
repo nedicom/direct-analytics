@@ -223,6 +223,13 @@
     .prospect-low  { background: #2e1a1a; color: #f08080; }
     .prospect-none { background: #1e1e2a; color: #444; }
 
+    .kw-bids-wrap { overflow: hidden; max-height: 196px; transition: max-height 0.3s ease; position: relative; }
+    .kw-bids-wrap.expanded { max-height: 2000px; }
+    .kw-bids-fade { position: absolute; bottom: 0; left: 0; right: 0; height: 48px; background: linear-gradient(transparent, #1a1a24); pointer-events: none; }
+    .kw-bids-wrap.expanded .kw-bids-fade { display: none; }
+    .kw-toggle { width: 100%; background: none; border: none; border-top: 1px solid #1e1e2a; padding: 7px; font-size: 11px; color: #555; cursor: pointer; text-align: center; }
+    .kw-toggle:hover { color: #ccc; }
+
     @media (max-width: 1000px) {
       .charts-grid { grid-template-columns: 1fr 1fr; }
       .main-grid   { grid-template-columns: 1fr; }
@@ -339,7 +346,9 @@
     </div>
     <div id="kwBidsBody" class="kw-bids-wrap">
       <div class="kw-loading" style="padding:20px">Загружаем данные…</div>
+      <div class="kw-bids-fade"></div>
     </div>
+    <button class="kw-toggle" id="kwBidsToggle" onclick="toggleKwBids()">Показать все ▾</button>
     <div id="kwBidsAnalysis" style="display:none;padding:16px 20px;border-top:1px solid #1e1e2a">
       <div style="font-size:11px;color:#555;margin-bottom:8px" id="kwAnalysisStatus"></div>
       <div style="font-size:13px;color:#ccc;white-space:pre-wrap;line-height:1.6" id="kwAnalysisText"></div>
@@ -804,13 +813,24 @@
     return '<span class="prospect-badge prospect-none">мало данных</span>';
   }
 
+  function toggleKwBids() {
+    const wrap = document.getElementById('kwBidsBody');
+    const btn  = document.getElementById('kwBidsToggle');
+    const expanded = wrap.classList.toggle('expanded');
+    btn.textContent = expanded ? 'Свернуть ▴' : 'Показать все ▾';
+  }
+
   function renderKwBidsTable(data) {
+    const wrap = document.getElementById('kwBidsBody');
+    wrap.classList.remove('expanded');
+    document.getElementById('kwBidsToggle').textContent = 'Показать все ▾';
+
     if (!data.ok) {
-      document.getElementById('kwBidsBody').innerHTML = `<div class="kw-empty" style="padding:16px">Ошибка: ${data.error}</div>`;
+      wrap.innerHTML = `<div class="kw-empty" style="padding:16px">Ошибка: ${data.error}</div><div class="kw-bids-fade"></div>`;
       return;
     }
     if (!data.keywords.length) {
-      document.getElementById('kwBidsBody').innerHTML = '<div class="kw-empty" style="padding:16px">Нет ключевых фраз (смарт-кампания или медийная)</div>';
+      wrap.innerHTML = '<div class="kw-empty" style="padding:16px">Нет ключевых фраз (смарт-кампания или медийная)</div><div class="kw-bids-fade"></div>';
       return;
     }
     document.getElementById('kwBidsCount').textContent = `${data.keywords.length} фраз`;
@@ -827,7 +847,7 @@
       <td class="r">${Math.round(kw.cost)} ₽</td>
       <td>${prospectBadge(kw)}</td>
     </tr>`).join('');
-    document.getElementById('kwBidsBody').innerHTML = `<table class="kw-bids-table">
+    wrap.innerHTML = `<table class="kw-bids-table">
       <thead><tr>
         <th>Ключевая фраза</th>
         <th class="r">Ставка</th>
@@ -839,7 +859,7 @@
         <th>Перспектива</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table><div class="kw-bids-fade"></div>`;
   }
 
   async function loadKwBids() {
