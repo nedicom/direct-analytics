@@ -406,6 +406,70 @@ def get_keywords_with_stats(token: str, campaign_id: int, date_from: str, date_t
     return result
 
 
+def get_keyword_bids(token: str, campaign_id: int) -> list[dict]:
+    """Fetch all keywords with current bids and serving status from Keywords API."""
+    sess = requests.Session()
+    sess.trust_env = False
+    result = []
+    offset = 0
+    while True:
+        resp = sess.post(
+            DIRECT_API_URL + "keywords",
+            json={
+                "method": "get",
+                "params": {
+                    "SelectionCriteria": {"CampaignIds": [campaign_id]},
+                    "FieldNames": ["Id", "Keyword", "Status", "State", "ServingStatus"],
+                    "BiddingFieldNames": ["Bid"],
+                    "Page": {"Limit": 1000, "Offset": offset},
+                },
+            },
+            headers=_headers(token),
+        )
+        data = resp.json()
+        err = data.get("error")
+        if err:
+            raise Exception(err.get("error_detail") or err.get("error_string", "Ошибка API"))
+        items = data.get("result", {}).get("Keywords", [])
+        for kw in items:
+            bid = kw.get("Bid")
+            result.append({
+                "id": kw["Id"],
+                "keyword": kw["Keyword"],
+                "status": kw.get("Status", ""),
+                "state": kw.get("State", ""),
+                "serving": kw.get("ServingStatus", ""),
+                "bid": round(float(bid), 2) if bid else None,
+            })
+        if not data.get("result", {}).get("LimitedBy"):
+            break
+        offset = data["result"]["LimitedBy"]
+    return result
+
+
+def set_keyword_bid(token: str, keyword_id: int, bid: float) -> None:
+    """Update bid for a single keyword via bids resource."""
+    sess = requests.Session()
+    sess.trust_env = False
+    resp = sess.post(
+        DIRECT_API_URL + "bids",
+        json={
+            "method": "set",
+            "params": {"Bids": [{"KeywordId": keyword_id, "Bid": bid}]},
+        },
+        headers=_headers(token),
+    )
+    data = resp.json()
+    err = data.get("error")
+    if err:
+        raise Exception(err.get("error_detail") or err.get("error_string", "Ошибка API"))
+    results = (data.get("result") or {}).get("SetResults", [])
+    if results:
+        item_errors = results[0].get("Errors", [])
+        if item_errors:
+            raise Exception(item_errors[0].get("Message", "Ошибка установки ставки"))
+
+
 def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
     """Returns search queries for a campaign on a specific date, sorted by clicks desc."""
     body = _reports_request(token, {

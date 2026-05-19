@@ -230,6 +230,30 @@
     .kw-toggle { width: 100%; background: none; border: none; border-top: 1px solid #1e1e2a; padding: 7px; font-size: 11px; color: #555; cursor: pointer; text-align: center; }
     .kw-toggle:hover { color: #ccc; }
 
+    /* Bid management table */
+    .bid-mgmt-body { overflow-y: auto; max-height: 500px; }
+    .bid-mgmt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .bid-mgmt-table th { padding: 8px 12px; text-align: left; color: #555; font-weight: 500; background: #16161f; position: sticky; top: 0; white-space: nowrap; }
+    .bid-mgmt-table td { padding: 7px 12px; border-bottom: 1px solid #1a1a24; vertical-align: middle; }
+    .bid-mgmt-table tr:last-child td { border-bottom: none; }
+    .bid-mgmt-table tr:hover td { background: #1e1e2c; }
+    .bid-mgmt-table td.r { text-align: right; }
+    .bid-mgmt-kw { color: #ccc; font-family: monospace; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bid-mgmt-cur { text-align: right; color: #fc3f1d; font-weight: 600; }
+    .bid-input { background: #12121a; border: 1px solid #2a2a3a; border-radius: 5px; padding: 5px 8px; color: #e0e0e0; font-size: 12px; width: 80px; outline: none; text-align: right; -moz-appearance: textfield; }
+    .bid-input:focus { border-color: #fc3f1d; }
+    .bid-input::-webkit-outer-spin-button, .bid-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .bid-save-btn { padding: 4px 10px; background: transparent; border: 1px solid #2a2a3a; border-radius: 5px; color: #888; font-size: 11px; cursor: pointer; white-space: nowrap; }
+    .bid-save-btn:hover:not(:disabled) { border-color: #4caf50; color: #4caf50; }
+    .bid-save-btn.saved { border-color: #4caf50; color: #4caf50; }
+    .bid-save-btn.err { border-color: #f08080; color: #f08080; }
+    .bid-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .serving-ok  { color: #4caf50; font-size: 11px; }
+    .serving-low { color: #c8a040; font-size: 11px; }
+    .serving-bad { color: #f08080; font-size: 11px; }
+    .serving-unk { color: #444; font-size: 11px; }
+    .auto-badge { font-size: 10px; color: #2a2a3a; padding: 3px 8px; border: 1px solid #1e1e2a; border-radius: 4px; white-space: nowrap; }
+
     @media (max-width: 1000px) {
       .charts-grid { grid-template-columns: 1fr 1fr; }
       .main-grid   { grid-template-columns: 1fr; }
@@ -356,6 +380,20 @@
         <input id="kwAnalysisQuestion" class="question-input" style="flex:1;min-width:200px" placeholder="Вопрос по этим фразам…" onkeydown="if(event.key==='Enter')askKwQuestion()">
         <button class="btn btn-primary" style="padding:7px 12px;font-size:12px" onclick="askKwQuestion()">→</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Bid management card -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header">
+      Управление ставками <span id="bidMgmtCount" class="card-count"></span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <button class="pbtn" id="btnBidRefresh" onclick="loadBidMgmt()">↻ Обновить</button>
+        <button class="pbtn" disabled style="opacity:0.35;cursor:not-allowed;border-style:dashed" title="Функционал в разработке">⚡ Автобидер</button>
+      </span>
+    </div>
+    <div id="bidMgmtBody" class="bid-mgmt-body">
+      <div class="kw-loading" style="padding:20px">Загружаем данные…</div>
     </div>
   </div>
 
@@ -910,6 +948,99 @@
     analyzeKwBids(q);
   }
 
+  // ── Bid management table ──
+  let _bidMgmtData = [];
+
+  async function loadBidMgmt() {
+    const btn = document.getElementById('btnBidRefresh');
+    btn.disabled = true;
+    document.getElementById('bidMgmtBody').innerHTML = '<div class="kw-loading" style="padding:20px">Загружаем данные из Яндекс.Директ…</div>';
+    try {
+      const r = await fetch(`/api/keyword_bids/${CAMPAIGN_ID}`);
+      const data = await r.json();
+      if (!data.ok) {
+        document.getElementById('bidMgmtBody').innerHTML = `<div class="kw-empty" style="padding:16px">Ошибка: ${escHtml(data.error)}</div>`;
+        return;
+      }
+      _bidMgmtData = data.keywords;
+      renderBidMgmtTable(data.keywords);
+    } catch {
+      document.getElementById('bidMgmtBody').innerHTML = '<div class="kw-empty" style="padding:16px">Ошибка сети</div>';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function kwServingLabel(kw) {
+    if (kw.status === 'REJECTED') return '<span class="serving-bad">Отклонено</span>';
+    if (kw.state === 'SUSPENDED' || kw.state === 'OFF') return '<span class="serving-unk">Пауза</span>';
+    if (kw.serving === 'ELIGIBLE') return '<span class="serving-ok">● Показывается</span>';
+    if (kw.serving === 'RARELY_SERVED') return '<span class="serving-low">● Редко</span>';
+    if (kw.serving === 'NOT_ELIGIBLE') return '<span class="serving-bad">● Не показ.</span>';
+    return '<span class="serving-unk">—</span>';
+  }
+
+  function renderBidMgmtTable(kws) {
+    document.getElementById('bidMgmtCount').textContent = kws.length ? `${kws.length} фраз` : '';
+    if (!kws.length) {
+      document.getElementById('bidMgmtBody').innerHTML = '<div class="kw-empty" style="padding:16px">Нет ключевых фраз (смарт-кампания или медийная)</div>';
+      return;
+    }
+    const rows = kws.map((kw, i) => `<tr>
+      <td class="bid-mgmt-kw" title="${escAttr(kw.keyword)}">${escHtml(kw.keyword)}</td>
+      <td>${kwServingLabel(kw)}</td>
+      <td class="bid-mgmt-cur">${kw.bid !== null ? kw.bid + ' ₽' : '—'}</td>
+      <td><input class="bid-input" id="bid-inp-${i}" type="number" min="0.01" step="0.01" value="${kw.bid !== null ? kw.bid : ''}" onkeydown="if(event.key==='Enter')saveBid(${i})"></td>
+      <td><button class="bid-save-btn" id="bid-save-${i}" onclick="saveBid(${i})">Сохранить</button></td>
+      <td><span class="auto-badge">Автобидер</span></td>
+    </tr>`).join('');
+    document.getElementById('bidMgmtBody').innerHTML = `<table class="bid-mgmt-table">
+      <thead><tr>
+        <th style="min-width:200px">Ключевая фраза</th>
+        <th>Статус</th>
+        <th class="r">Ставка</th>
+        <th class="r">Изменить</th>
+        <th></th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  async function saveBid(i) {
+    const kw = _bidMgmtData[i];
+    const inp = document.getElementById(`bid-inp-${i}`);
+    const btn = document.getElementById(`bid-save-${i}`);
+    const val = parseFloat(inp.value);
+    if (isNaN(val) || val <= 0) {
+      btn.textContent = 'Ошибка'; btn.className = 'bid-save-btn err';
+      setTimeout(() => { btn.textContent = 'Сохранить'; btn.className = 'bid-save-btn'; }, 2000);
+      return;
+    }
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const r = await fetch(`/api/keyword_bid/${kw.id}`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({bid: val}),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        _bidMgmtData[i].bid = val;
+        const row = inp.closest('tr');
+        if (row) { row.cells[2].textContent = val + ' ₽'; row.cells[2].className = 'bid-mgmt-cur'; }
+        btn.textContent = '✓'; btn.className = 'bid-save-btn saved';
+        setTimeout(() => { btn.textContent = 'Сохранить'; btn.className = 'bid-save-btn'; btn.disabled = false; }, 2000);
+      } else {
+        btn.textContent = 'Ошибка'; btn.className = 'bid-save-btn err';
+        setTimeout(() => { btn.textContent = 'Сохранить'; btn.className = 'bid-save-btn'; btn.disabled = false; }, 3000);
+        alert('Ошибка: ' + data.error);
+      }
+    } catch {
+      btn.textContent = 'Ошибка'; btn.className = 'bid-save-btn err';
+      setTimeout(() => { btn.textContent = 'Сохранить'; btn.className = 'bid-save-btn'; btn.disabled = false; }, 3000);
+    }
+  }
+
   function useHint(el) {
     document.getElementById('customQuestion').value = el.textContent;
     askQuestion();
@@ -1308,6 +1439,7 @@
 
   loadNegatives();
   loadKwBids();
+  loadBidMgmt();
 </script>
 </body>
 </html>

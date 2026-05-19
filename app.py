@@ -9,7 +9,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session
 from direct_client import (
     get_campaigns, get_campaigns_by_ids, get_campaign_stats, get_keyword_stats,
     get_negatives, update_campaign_negatives, update_adgroup_negatives, get_search_queries,
-    get_keywords_with_stats,
+    get_keywords_with_stats, get_keyword_bids, set_keyword_bid,
 )
 
 load_dotenv()
@@ -1020,6 +1020,35 @@ def campaign_keywords_analyze(campaign_id):
         return jsonify({"ok": True, "analysis": resp.content[0].text})
     except anthropic.APIError as e:
         return jsonify({"ok": False, "error": f"Claude: {e.status_code} — {e.message}"}), 200
+
+
+@app.route("/api/keyword_bids/<int:campaign_id>")
+@login_required
+def keyword_bids_endpoint(campaign_id):
+    try:
+        bids = get_keyword_bids(DIRECT_TOKEN, campaign_id)
+        return jsonify({"ok": True, "keywords": bids})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/keyword_bid/<int:keyword_id>", methods=["POST"])
+@login_required
+def update_keyword_bid(keyword_id):
+    body = request.json or {}
+    bid = body.get("bid")
+    if bid is None:
+        return jsonify({"ok": False, "error": "Укажите ставку"}), 400
+    try:
+        bid = float(bid)
+        if bid <= 0:
+            return jsonify({"ok": False, "error": "Ставка должна быть больше 0"}), 400
+        set_keyword_bid(DIRECT_TOKEN, keyword_id, bid)
+        return jsonify({"ok": True})
+    except ValueError:
+        return jsonify({"ok": False, "error": "Некорректное значение ставки"}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 if __name__ == "__main__":
