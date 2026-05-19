@@ -479,7 +479,7 @@
     <div class="gen-footer">
       <span class="gen-status" id="addNegStatus"></span>
       <button class="neg-btn" onclick="closeModal('addNegOverlay')">Отмена</button>
-      <button class="neg-btn primary" onclick="submitAddNeg()">Добавить</button>
+      <button class="neg-btn primary" id="btnSubmitNeg" onclick="submitAddNeg()">Добавить</button>
     </div>
   </div>
 </div>
@@ -991,7 +991,9 @@
     if (!phrases.length) { document.getElementById('addNegStatus').textContent = 'Введите хотя бы одну фразу'; return; }
     const level = document.getElementById('addNegLevel').value;
     const statusEl = document.getElementById('addNegStatus');
+    const btn = document.getElementById('btnSubmitNeg');
     statusEl.textContent = 'Сохраняем…'; statusEl.className = 'gen-status';
+    btn.disabled = true;
 
     let url, body;
     if (level === 'campaign') {
@@ -1013,6 +1015,7 @@
         setTimeout(() => closeModal('addNegOverlay'), 1200);
       } else { statusEl.textContent = data.error; statusEl.className = 'gen-status err'; }
     } catch { statusEl.textContent = 'Ошибка сети'; statusEl.className = 'gen-status err'; }
+    finally { btn.disabled = false; }
   }
 
   function setNegPreset(days) {
@@ -1062,7 +1065,8 @@
   }
 
   async function applySuggestions() {
-    const all = JSON.parse(document.getElementById('btnApplySug').dataset.suggestions);
+    const btn = document.getElementById('btnApplySug');
+    const all = JSON.parse(btn.dataset.suggestions);
     const selected = all
       .map((_, i) => ({ checked: document.getElementById(`sug${i}`)?.checked, phrase: document.getElementById(`sugPhrase${i}`)?.value.trim() }))
       .filter(x => x.checked && x.phrase)
@@ -1070,6 +1074,7 @@
     if (!selected.length) { document.getElementById('analyzeNegStatus').textContent = 'Ничего не выбрано'; return; }
     const statusEl = document.getElementById('analyzeNegStatus');
     statusEl.textContent = 'Добавляем…'; statusEl.className = 'gen-status';
+    btn.disabled = true;
     try {
       const r = await fetch(`/api/negatives/${CAMPAIGN_ID}/campaign`, {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -1079,10 +1084,11 @@
       if (data.ok) {
         statusEl.textContent = `Готово! Добавлено ${selected.length} фраз. Всего: ${data.total}`;
         await loadNegatives();
-        document.getElementById('btnApplySug').style.display = 'none';
+        btn.style.display = 'none';
         document.getElementById('btnRunAnalysis').style.display = '';
       } else { statusEl.textContent = data.error; statusEl.className = 'gen-status err'; }
     } catch { statusEl.textContent = 'Ошибка сети'; statusEl.className = 'gen-status err'; }
+    finally { btn.disabled = false; }
   }
 
   function closeModal(id) { document.getElementById(id).classList.remove('open'); }
