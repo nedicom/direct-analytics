@@ -817,13 +817,23 @@ def analyze_negatives(campaign_id):
 
     import re
     text = resp.content[0].text
-    m = re.search(r"\[.*\]", text, re.DOTALL)
-    if not m:
-        return jsonify({"ok": False, "error": "Claude вернул неожиданный формат"}), 200
-    try:
-        suggestions = json.loads(m.group())
-    except json.JSONDecodeError:
-        return jsonify({"ok": False, "error": "Ошибка разбора ответа Claude"}), 200
+    # Strip markdown code fences if present
+    clean = re.sub(r'```(?:json)?\s*', '', text).strip()
+    suggestions = None
+    # Try whole response first, then extract first [...] block
+    for candidate in [clean, (re.search(r'\[.*\]', clean, re.DOTALL) or type('', (), {'group': lambda s: None})()).group()]:
+        if not candidate:
+            continue
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, list):
+                suggestions = parsed
+                break
+        except json.JSONDecodeError:
+            continue
+    if suggestions is None:
+        app.logger.error("Claude raw response: %s", text)
+        return jsonify({"ok": False, "error": f"Ошибка разбора ответа Claude. Ответ: {text[:300]}"}), 200
 
     STOPWORDS = {
         'в', 'на', 'с', 'к', 'по', 'от', 'до', 'из', 'за', 'под', 'над',
