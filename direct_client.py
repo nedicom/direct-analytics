@@ -470,7 +470,8 @@ def set_keyword_bid(token: str, keyword_id: int, bid: float) -> None:
 
 
 def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
-    """Returns search queries for a campaign on a specific date, sorted by clicks desc."""
+    """Returns search queries for a campaign on a specific date, sorted by clicks desc.
+    Columns: Query(0) Impressions(1) Clicks(2) Cost(3) Ctr(4) AvgImpressionPosition(5) AvgClickPosition(6)"""
     body = _reports_request(token, {
         "method": "get",
         "params": {
@@ -479,8 +480,9 @@ def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
                 "DateTo": date,
                 "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
             },
-            "FieldNames": ["Query", "Impressions", "Clicks", "Cost", "Ctr"],
-            "ReportName": f"kw_{campaign_id}_{date}",
+            "FieldNames": ["Query", "Impressions", "Clicks", "Cost", "Ctr",
+                           "AvgImpressionPosition", "AvgClickPosition"],
+            "ReportName": f"kwp_{campaign_id}_{date}",
             "ReportType": "SEARCH_QUERY_PERFORMANCE_REPORT",
             "DateRangeType": "CUSTOM_DATE",
             "Format": "TSV",
@@ -488,18 +490,24 @@ def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
             "IncludeDiscount": "NO",
         },
     })
+
+    def _int(s): return int(s) if s and s != "--" else 0
+    def _float(s): return float(s) if s and s != "--" else 0.0
+
     result = []
     for line in body.split("\n")[2:]:
         parts = line.split("\t")
-        if len(parts) < 5:
+        if len(parts) < 7:
             continue
         try:
             result.append({
                 "query": parts[0],
-                "impressions": int(parts[1]) if parts[1] != "--" else 0,
-                "clicks": int(parts[2]) if parts[2] != "--" else 0,
-                "cost": round(float(parts[3]), 2) if parts[3] != "--" else 0.0,
-                "ctr": round(float(parts[4]), 2) if parts[4] != "--" else 0.0,
+                "impressions": _int(parts[1]),
+                "clicks": _int(parts[2]),
+                "cost": round(_float(parts[3]), 2),
+                "ctr": round(_float(parts[4]), 2),
+                "avg_imp_pos": round(_float(parts[5]), 1),
+                "avg_clk_pos": round(_float(parts[6]), 1),
             })
         except (ValueError, IndexError):
             continue

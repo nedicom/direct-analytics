@@ -812,15 +812,30 @@
       el.innerHTML = '<div style="padding:8px 14px 8px 28px;color:#444;font-size:11px">Нет поисковых запросов за этот день</div>';
       return;
     }
-    const rows = queries.map(q => `<tr>
-      <td style="padding:4px 14px 4px 28px;color:#888;font-size:11px;font-family:monospace;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(q.query)}">${escHtml(q.query)}</td>
-      <td style="padding:4px 14px;text-align:right;color:#555;font-size:11px">${fmtNum(q.impressions)}</td>
-      <td style="padding:4px 14px;text-align:right;font-size:11px;color:${q.clicks > 0 ? '#4caf50' : '#555'}">${q.clicks}</td>
-      <td style="padding:4px 14px;text-align:right;color:#555;font-size:11px">${q.ctr}%</td>
-      <td style="padding:4px 14px;text-align:right;color:#555;font-size:11px">${Math.round(q.cost)} ₽</td>
-      <td></td>
-    </tr>`).join('');
-    el.innerHTML = `<table style="width:100%;border-collapse:collapse;background:#111118"><tbody>${rows}</tbody></table>`;
+    const S = 'padding:4px 10px;text-align:right;color:#555;font-size:11px';
+    const rows = queries.map(q => {
+      const impPos = q.avg_imp_pos > 0 ? q.avg_imp_pos.toFixed(1) : '—';
+      const clkPos = q.avg_clk_pos > 0 ? q.avg_clk_pos.toFixed(1) : '—';
+      const posColor = p => p <= 3 ? '#4caf50' : p <= 7 ? '#c8a040' : '#888';
+      return `<tr>
+        <td style="padding:4px 10px 4px 28px;color:#888;font-size:11px;font-family:monospace;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(q.query)}">${escHtml(q.query)}</td>
+        <td style="${S}">${fmtNum(q.impressions)}</td>
+        <td style="${S};color:${q.clicks > 0 ? '#4caf50' : '#555'}">${q.clicks}</td>
+        <td style="${S}">${q.ctr}%</td>
+        <td style="${S}">${Math.round(q.cost)} ₽</td>
+        <td style="${S};color:${q.avg_imp_pos > 0 ? posColor(q.avg_imp_pos) : '#333'};font-weight:500">${impPos}</td>
+        <td style="${S};color:${q.avg_clk_pos > 0 ? posColor(q.avg_clk_pos) : '#333'};font-weight:500">${clkPos}</td>
+      </tr>`;
+    }).join('');
+    const H = 'padding:4px 10px;text-align:right;color:#444;font-size:10px;font-weight:500;background:#111118';
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;background:#111118">
+      <thead><tr>
+        <th style="padding:4px 10px 4px 28px;text-align:left;color:#444;font-size:10px;font-weight:500;background:#111118">Запрос</th>
+        <th style="${H}">Показы</th><th style="${H}">Клики</th><th style="${H}">CTR</th>
+        <th style="${H}">Расход</th><th style="${H}">Поз.показа</th><th style="${H}">Поз.клика</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
   }
 
   // ── Search queries for date range (toolbar button) ──
