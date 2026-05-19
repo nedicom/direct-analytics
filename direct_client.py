@@ -330,7 +330,14 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
 
 
 def get_keywords_with_stats(token: str, campaign_id: int, date_from: str, date_to: str) -> list[dict]:
-    """Returns campaign keywords with bids and performance stats via CRITERIA_PERFORMANCE_REPORT."""
+    """Returns campaign keywords with bids and performance stats.
+    Stats come from CRITERIA_PERFORMANCE_REPORT; bids from Keywords API."""
+
+    def _int(s): return int(s) if s and s != "--" else 0
+    def _float(s): return float(s) if s and s != "--" else 0.0
+
+    # ── Step 1: performance stats from report ──
+    # Columns: Criterion(0), CriteriaType(1), Impressions(2), Clicks(3), Cost(4), Ctr(5), AvgCpc(6)
     body = _reports_request(token, {
         "method": "get",
         "params": {
@@ -339,8 +346,7 @@ def get_keywords_with_stats(token: str, campaign_id: int, date_from: str, date_t
                 "DateTo": date_to,
                 "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
             },
-            # Columns: Criterion(0), CriteriaType(1), Impressions(2), Clicks(3), Cost(4), Ctr(5), AvgCpc(6), Bid(7)
-            "FieldNames": ["Criterion", "CriteriaType", "Impressions", "Clicks", "Cost", "Ctr", "AvgCpc", "Bid"],
+            "FieldNames": ["Criterion", "CriteriaType", "Impressions", "Clicks", "Cost", "Ctr", "AvgCpc"],
             "ReportName": f"kws_{campaign_id}_{date_from}_{date_to}",
             "ReportType": "CRITERIA_PERFORMANCE_REPORT",
             "DateRangeType": "CUSTOM_DATE",
@@ -350,30 +356,53 @@ def get_keywords_with_stats(token: str, campaign_id: int, date_from: str, date_t
         },
     })
 
-    def _int(s): return int(s) if s and s != "--" else 0
-    def _float(s): return float(s) if s and s != "--" else 0.0
-
-    result = []
+    stats: dict[str, dict] = {}
     for line in body.split("\n")[2:]:
         parts = line.split("\t")
-        if len(parts) < 8:
+        if len(parts) < 7:
             continue
         try:
             if parts[1] != "KEYWORD":
                 continue
-            result.append({
-                "keyword": parts[0],
+            kw = parts[0]
+            stats[kw] = {
+                "keyword": kw,
                 "impressions": _int(parts[2]),
                 "clicks": _int(parts[3]),
                 "cost": round(_float(parts[4]), 2),
                 "ctr": round(_float(parts[5]), 2),
                 "avg_cpc": round(_float(parts[6]), 2),
-                "bid": round(_float(parts[7]), 2) if parts[7] not in ("--", "", "0") else None,
-            })
+                "bid": None,
+            }
         except (ValueError, IndexError):
             continue
 
-    result.sort(key=lambda x: x["clicks"], reverse=True)
+    # ── Step 2: keyword bids from Keywords API ──
+    sess = requests.Session()
+    sess.trust_env = False
+    try:
+        resp = sess.post(
+            DIRECT_API_URL + "keywords",
+            json={
+                "method": "get",
+                "params": {
+                    "SelectionCriteria": {"CampaignIds": [campaign_id]},
+                    "FieldNames": ["Keyword", "Status"],
+                    "BiddingFieldNames": ["Bid"],
+                    "Page": {"Limit": 10000},
+                },
+            },
+            headers=_headers(token),
+        )
+        for kw_obj in resp.json().get("result", {}).get("Keywords", []):
+            text = kw_obj.get("Keyword", "")
+            bid_val = kw_obj.get("Bid")
+            if text in stats and bid_val:
+                stats[text]["bid"] = round(_float(str(bid_val)), 2)
+    except Exception:
+        pass  # bids are optional — don't fail the whole call
+
+    result = sorted(stats.values(), key=lambda x: x["clicks"], reverse=True)
     return result
 
 
