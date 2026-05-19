@@ -480,34 +480,54 @@ def get_campaign_goals(token: str, campaign_id: int) -> dict:
     sess = requests.Session()
     sess.trust_env = False
 
+    # Step 1: get campaign type
     try:
         resp = sess.post(
             DIRECT_API_URL + "campaigns",
             json={"method": "get", "params": {
                 "SelectionCriteria": {"Ids": [campaign_id]},
                 "FieldNames": ["Id", "Type"],
-                "TextCampaignFieldNames": ["CounterIds"],
-                "UnifiedCampaignFieldNames": ["CounterIds"],
-                "SmartCampaignFieldNames": ["CounterIds"],
-                "DynamicTextCampaignFieldNames": ["CounterIds"],
-                "MobileAppCampaignFieldNames": ["CounterIds"],
             }},
             headers=_headers(token),
         )
         camps = resp.json().get("result", {}).get("Campaigns", [])
-        camp = camps[0] if camps else {}
-        # CounterIds is inside the type-specific sub-object
-        ctype = camp.get("Type", "")
-        type_key = {
-            "TEXT_CAMPAIGN": "TextCampaign",
-            "UNIFIED_CAMPAIGN": "UnifiedCampaign",
-            "SMART_CAMPAIGN": "SmartCampaign",
-            "DYNAMIC_TEXT_CAMPAIGN": "DynamicTextCampaign",
-            "MOBILE_APP_CAMPAIGN": "MobileAppCampaign",
-        }.get(ctype, "")
-        sub = camp.get(type_key, {}) if type_key else {}
-        raw_ids = sub.get("CounterIds")
-        counter_ids = (raw_ids.get("Items") if isinstance(raw_ids, dict) else raw_ids) or []
+        ctype = camps[0].get("Type", "") if camps else ""
+    except Exception as e:
+        return {"goals": [], "error": str(e)}
+
+    # Step 2: fetch counter ID using the correct type-specific field name
+    # TextCampaign/UnifiedCampaign use CounterIds (array), SmartCampaign uses CounterId (int)
+    TYPE_MAP = {
+        "TEXT_CAMPAIGN":         ("TextCampaignFieldNames",         "TextCampaign",         "CounterIds", True),
+        "UNIFIED_CAMPAIGN":      ("UnifiedCampaignFieldNames",      "UnifiedCampaign",      "CounterIds", True),
+        "DYNAMIC_TEXT_CAMPAIGN": ("DynamicTextCampaignFieldNames",  "DynamicTextCampaign",  "CounterIds", True),
+        "MOBILE_APP_CAMPAIGN":   ("MobileAppCampaignFieldNames",    "MobileAppCampaign",    "CounterIds", True),
+        "SMART_CAMPAIGN":        ("SmartCampaignFieldNames",        "SmartCampaign",        "CounterId",  False),
+        "CPM_BANNER_CAMPAIGN":   ("CpmBannerCampaignFieldNames",    "CpmBannerCampaign",    "CounterIds", True),
+        "MCBANNER_CAMPAIGN":     ("McBannerCampaignFieldNames",     "McBannerCampaign",     "CounterIds", True),
+    }
+    mapping = TYPE_MAP.get(ctype)
+    if not mapping:
+        return {"goals": [], "error": f"Тип кампании {ctype!r} не поддерживается"}
+
+    fn_key, sub_key, counter_field, is_array = mapping
+    try:
+        resp2 = sess.post(
+            DIRECT_API_URL + "campaigns",
+            json={"method": "get", "params": {
+                "SelectionCriteria": {"Ids": [campaign_id]},
+                "FieldNames": ["Id"],
+                fn_key: [counter_field],
+            }},
+            headers=_headers(token),
+        )
+        camps2 = resp2.json().get("result", {}).get("Campaigns", [])
+        sub = camps2[0].get(sub_key, {}) if camps2 else {}
+        raw = sub.get(counter_field)
+        if is_array:
+            counter_ids = (raw.get("Items") if isinstance(raw, dict) else raw) or []
+        else:
+            counter_ids = [raw] if raw else []
     except Exception as e:
         return {"goals": [], "error": str(e)}
 

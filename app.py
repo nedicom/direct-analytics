@@ -735,7 +735,7 @@ def debug_campaign(campaign_id):
             "FieldNames": ["Id", "Name", "Type"],
             "TextCampaignFieldNames": ["CounterIds"],
             "UnifiedCampaignFieldNames": ["CounterIds"],
-            "SmartCampaignFieldNames": ["CounterIds"],
+            "SmartCampaignFieldNames": ["CounterId", "PriorityGoals"],
             "DynamicTextCampaignFieldNames": ["CounterIds"],
         }},
         headers=_headers(DIRECT_TOKEN),
