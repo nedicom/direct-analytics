@@ -71,7 +71,7 @@ def get_campaign_stats(
                 "DateTo": date_to,
             },
             "FieldNames": ["CampaignId", "CampaignName", "Date", "Impressions", "Clicks", "Cost", "Ctr", "Conversions"],
-            "ReportName": f"stats_{date_from}_{date_to}",
+            "ReportName": f"statsv2_{date_from}_{date_to}",
             "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
             "DateRangeType": "CUSTOM_DATE",
             "Format": "TSV",
