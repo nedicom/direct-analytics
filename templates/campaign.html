@@ -483,20 +483,7 @@
       </div>
       <div class="tbl-scroll">
         <table>
-          <thead>
-            <tr>
-              <th onclick="sortBy('date')"        id="th-date">Дата <span class="arr"></span></th>
-              <th onclick="sortBy('impressions')" id="th-impressions" style="text-align:right">Показы <span class="arr"></span></th>
-              <th onclick="sortBy('clicks')"      id="th-clicks" style="text-align:right">Клики <span class="arr"></span></th>
-              <th onclick="sortBy('ctr')"         id="th-ctr" style="text-align:right">CTR <span class="arr"></span></th>
-              <th onclick="sortBy('cost')"        id="th-cost" style="text-align:right">Расход ₽ <span class="arr"></span></th>
-              <th onclick="sortBy('cpc')"         id="th-cpc" style="text-align:right">CPC ₽ <span class="arr"></span></th>
-              {% if total_conversions > 0 %}
-              <th onclick="sortBy('conversions')" id="th-conversions" style="text-align:right">Конв. <span class="arr"></span></th>
-              <th onclick="sortBy('cpa')"         id="th-cpa" style="text-align:right">CPA ₽ <span class="arr"></span></th>
-              {% endif %}
-            </tr>
-          </thead>
+          <thead id="dailyThead"></thead>
           <tbody id="dailyTbody"></tbody>
         </table>
       </div>
@@ -701,17 +688,47 @@
     });
   }
 
+  function getGoalCols() {
+    if (!_goalStatsData) return [];
+    return Object.entries(_goalStatsData)
+      .filter(([, g]) => g.total > 0)
+      .map(([id, g]) => ({ id, name: g.name, daily: g.daily || {} }));
+  }
+
+  function totalCols() {
+    return 6 + (HAS_CONV ? 2 : 0) + getGoalCols().length;
+  }
+
   function renderTable() {
     const data = getSorted();
     const tbody = document.getElementById('dailyTbody');
+    const thead = document.getElementById('dailyThead');
     document.getElementById('tableCount').textContent = `· ${data.length} дней`;
+    const goalCols = getGoalCols();
+
+    // Dynamic headers
+    const S = 'text-align:right';
+    const goalThs = goalCols.map(g => {
+      const short = g.name.length > 14 ? g.name.slice(0,13) + '…' : g.name;
+      return `<th style="${S};font-size:10px;max-width:90px" title="${escAttr(g.name)}">${escHtml(short)}</th>`;
+    }).join('');
+    thead.innerHTML = `<tr>
+      <th onclick="sortBy('date')" id="th-date">Дата <span class="arr"></span></th>
+      <th onclick="sortBy('impressions')" id="th-impressions" style="${S}">Показы <span class="arr"></span></th>
+      <th onclick="sortBy('clicks')"      id="th-clicks"      style="${S}">Клики <span class="arr"></span></th>
+      <th onclick="sortBy('ctr')"         id="th-ctr"         style="${S}">CTR <span class="arr"></span></th>
+      <th onclick="sortBy('cost')"        id="th-cost"        style="${S}">Расход ₽ <span class="arr"></span></th>
+      <th onclick="sortBy('cpc')"         id="th-cpc"         style="${S}">CPC ₽ <span class="arr"></span></th>
+      ${HAS_CONV ? `<th onclick="sortBy('conversions')" id="th-conversions" style="${S}">Конв. <span class="arr"></span></th>
+      <th onclick="sortBy('cpa')" id="th-cpa" style="${S}">CPA ₽ <span class="arr"></span></th>` : ''}
+      ${goalThs}
+    </tr>`;
 
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#444;padding:20px">Нет данных за период</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="${totalCols()}" style="text-align:center;color:#444;padding:20px">Нет данных за период</td></tr>`;
       return;
     }
 
-    // Totals
     const tot = data.reduce((acc, r) => ({
       impressions: acc.impressions + r.impressions,
       clicks: acc.clicks + r.clicks,
@@ -720,8 +737,6 @@
     }), {impressions:0, clicks:0, cost:0, conversions:0});
     const totCtr = tot.impressions ? (tot.clicks / tot.impressions * 100).toFixed(2) : 0;
     const totCpc = tot.clicks ? (tot.cost / tot.clicks).toFixed(2) : 0;
-
-    // Max values for highlighting
     const maxClicks = Math.max(...data.map(r => r.clicks));
     const maxCost   = Math.max(...data.map(r => r.cost));
 
@@ -732,6 +747,10 @@
       const ctrCls = r.ctr < 1 && r.impressions > 50 ? 'num lo' : (r.ctr > 5 ? 'num hi' : 'num');
       const convCell = HAS_CONV ? `<td class="num">${r.conversions > 0 ? r.conversions : '—'}</td>
         <td class="num">${r.cpa > 0 ? r.cpa + ' ₽' : '—'}</td>` : '';
+      const goalCells = goalCols.map(g => {
+        const cnt = g.daily[r.date] || 0;
+        return `<td style="text-align:right;font-size:11px;color:${cnt > 0 ? '#4caf50' : '#2a2a3a'}">${cnt > 0 ? cnt : '—'}</td>`;
+      }).join('');
       return `<tr class="${cls}" onclick="toggleDayQueries('${r.date}')">
         <td>${fmtDate(r.date)} <span id="day-arr-${r.date}" style="color:#333;font-size:10px">▸</span></td>
         <td class="num">${fmtNum(r.impressions)}</td>
@@ -739,16 +758,20 @@
         <td class="${ctrCls}">${r.ctr}%</td>
         <td class="num">${fmtNum(Math.round(r.cost))} ₽</td>
         <td class="num">${r.cpc > 0 ? r.cpc + ' ₽' : '—'}</td>
-        ${convCell}
+        ${convCell}${goalCells}
       </tr>
       <tr id="day-exp-${r.date}" style="display:none">
-        <td colspan="${HAS_CONV ? 8 : 6}" style="padding:0;border-bottom:1px solid #1a1a24">
+        <td colspan="${totalCols()}" style="padding:0;border-bottom:1px solid #1a1a24">
           <div id="day-qbody-${r.date}"></div>
         </td>
       </tr>`;
     }).join('');
 
     const totCpa = tot.conversions > 0 ? (tot.cost / tot.conversions).toFixed(2) : 0;
+    const goalTotals = goalCols.map(g => {
+      const tot = Object.values(g.daily).reduce((a, b) => a + b, 0);
+      return `<td style="text-align:right;font-size:11px;font-weight:600;color:${tot > 0 ? '#4caf50' : '#2a2a3a'}">${tot > 0 ? tot : '—'}</td>`;
+    }).join('');
     const totalRow = `<tr class="total-row">
       <td>Итого</td>
       <td class="num">${fmtNum(tot.impressions)}</td>
@@ -757,6 +780,7 @@
       <td class="num">${fmtNum(Math.round(tot.cost))} ₽</td>
       <td class="num">${totCpc > 0 ? totCpc + ' ₽' : '—'}</td>
       ${HAS_CONV ? `<td class="num">${tot.conversions > 0 ? tot.conversions : '—'}</td><td class="num">${totCpa > 0 ? totCpa + ' ₽' : '—'}</td>` : ''}
+      ${goalTotals}
     </tr>`;
 
     tbody.innerHTML = rows + totalRow;
@@ -873,6 +897,7 @@
         return;
       }
       _goalStatsData = data.goals_stats;
+      renderTable(); // re-render daily table with goal columns
       // Build summary table
       const goalList = Object.values(_goalStatsData);
       if (!goalList.length || goalList.every(g => g.total === 0)) {
@@ -965,15 +990,17 @@
     if (_goalStatsData && date) {
       const goalItems = Object.values(_goalStatsData)
         .filter(g => g.daily && g.daily[date] > 0)
-        .map(g => `<span style="font-size:11px;color:#888;margin-right:14px">
-          <span style="color:#4caf50;font-weight:600">${g.daily[date]}</span> ${escHtml(g.name)}
-          ${g.cpa > 0 ? `<span style="color:#555"> · CPA ${g.daily_cpa && g.daily_cpa[date] ? g.daily_cpa[date] : g.cpa} ₽</span>` : ''}
+        .map(g => `<span style="display:inline-flex;align-items:center;gap:5px;background:#0a1a0a;border:1px solid #1a2a1a;border-radius:4px;padding:2px 8px;margin:2px">
+          <span style="color:#4caf50;font-weight:700;font-size:12px">${g.daily[date]}</span>
+          <span style="color:#888;font-size:11px">${escHtml(g.name)}</span>
         </span>`);
       if (goalItems.length) {
-        html += `<div style="padding:5px 14px 5px 28px;background:#0f1a0f;border-top:1px solid #1a2a1a;display:flex;flex-wrap:wrap;align-items:center;gap:4px">
-          <span style="font-size:10px;color:#4caf50;font-weight:600;margin-right:4px">Цели:</span>
+        html += `<div style="padding:6px 14px 6px 14px;background:#0d1a0d;border-top:1px solid #1a2a1a;display:flex;flex-wrap:wrap;align-items:center;gap:4px">
+          <span style="font-size:10px;color:#4caf50;font-weight:600;margin-right:6px;flex-shrink:0">Цели за день:</span>
           ${goalItems.join('')}
         </div>`;
+      } else if (Object.keys(_goalStatsData).length > 0) {
+        html += `<div style="padding:5px 14px;background:#0d1a0d;border-top:1px solid #1a2a1a;font-size:11px;color:#2a3a2a">Конверсий по целям нет</div>`;
       }
     }
 
