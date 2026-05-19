@@ -359,14 +359,13 @@
 
   <!-- Charts -->
   {% if chart_labels != '[]' %}
-  <div class="charts-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:20px;">
+  <div class="charts-grid" style="grid-template-columns:2fr 1fr 1fr;margin-bottom:20px;">
     <div class="chart-card">
-      <div class="chart-title">Расход по дням, ₽</div>
+      <div class="chart-title" style="display:flex;justify-content:space-between">
+        <span>Расход по дням, ₽</span>
+        <span style="color:#4a9eff;font-size:10px">— Клики</span>
+      </div>
       <div class="chart-wrap"><canvas id="costChart"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Клики по дням</div>
-      <div class="chart-wrap"><canvas id="clicksChart"></canvas></div>
     </div>
     <div class="chart-card">
       <div class="chart-title">Показы по дням</div>
@@ -875,13 +874,25 @@
 
     new Chart(document.getElementById('costChart'), {
       type: 'bar',
-      data: { labels: CHART_LABELS, datasets: [{ data: CHART_COSTS, backgroundColor: 'rgba(252,63,29,0.55)', borderColor: '#fc3f1d', borderWidth: 1, borderRadius: 2 }] },
-      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label: c => ' ' + c.raw.toLocaleString('ru-RU') + ' ₽'}}}, scales },
-    });
-    new Chart(document.getElementById('clicksChart'), {
-      type: 'line',
-      data: { labels: CHART_LABELS, datasets: [{ data: CHART_CLICKS, borderColor: '#4a9eff', backgroundColor: 'rgba(74,158,255,0.08)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 2 }] },
-      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label: c => ' ' + c.raw.toLocaleString('ru-RU') + ' кл.'}}}, scales },
+      data: {
+        labels: CHART_LABELS,
+        datasets: [
+          { type: 'bar',  yAxisID: 'y',  data: CHART_COSTS,  backgroundColor: 'rgba(252,63,29,0.5)', borderColor: '#fc3f1d', borderWidth: 1, borderRadius: 2,
+            tooltip: { callbacks: { label: c => ' ' + c.raw.toLocaleString('ru-RU') + ' ₽' } } },
+          { type: 'line', yAxisID: 'y1', data: CHART_CLICKS, borderColor: '#4a9eff', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 2,
+            tooltip: { callbacks: { label: c => ' ' + c.raw.toLocaleString('ru-RU') + ' кл.' } } },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false,
+          callbacks: { label: c => c.datasetIndex === 0 ? ' ' + c.raw.toLocaleString('ru-RU') + ' ₽' : ' ' + c.raw.toLocaleString('ru-RU') + ' кл.' } } },
+        scales: {
+          x:  { grid, ticks: xTicks },
+          y:  { grid, beginAtZero: true, position: 'left',  ticks: { color: '#fc3f1d' } },
+          y1: { grid: { display: false }, beginAtZero: true, position: 'right', ticks: { color: '#4a9eff' } },
+        },
+      },
     });
     new Chart(document.getElementById('impressionsChart'), {
       type: 'line',
