@@ -775,10 +775,11 @@ def analyze_negatives(campaign_id):
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
-    # Merge API result with client-provided list so recently added phrases are not re-suggested
-    camp_neg = list(dict.fromkeys(camp_neg + client_neg))
+    # Collect all negatives: campaign + all groups + client-side (dedup set for filtering)
+    group_neg = [n for g in neg_data.get("groups", []) for n in g.get("negatives", [])]
+    all_neg = list(dict.fromkeys(camp_neg + group_neg + client_neg))
 
-    neg_str = "\n".join(camp_neg) if camp_neg else "не установлены"
+    neg_str = "\n".join(all_neg) if all_neg else "не установлены"
     rows = "\n".join(f"{q['query']} | {q['impressions']} показов | {q['clicks']} кликов | {q['cost']} ₽"
                      for q in queries[:200])
     if not rows:
@@ -822,7 +823,7 @@ def analyze_negatives(campaign_id):
     def _norm(p):
         return re.sub(r'\s+', ' ', re.sub(r'[!"+]', '', p)).strip().lower()
 
-    existing_norm = {_norm(n) for n in camp_neg}
+    existing_norm = {_norm(n) for n in all_neg}
     # Single-word negatives already block any query containing that word
     single_word_negs = {n for n in existing_norm if n and ' ' not in n}
 
