@@ -917,7 +917,7 @@ def search_queries_range(campaign_id):
 
 
 def _kw_cache_file(campaign_id):
-    return os.path.join(_HERE, f"kw_cache_{campaign_id}.json")
+    return os.path.join("/tmp", f"direct_kw_cache_{campaign_id}.json")
 
 def _read_kw_cache(campaign_id):
     path = _kw_cache_file(campaign_id)
