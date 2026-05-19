@@ -374,7 +374,10 @@
   <div class="card" id="goalsCard" style="margin-bottom:20px;display:none">
     <div class="card-header">
       <span>Цели кампании <span id="goalsCount" class="card-count"></span></span>
-      <button class="pbtn" id="btnGoalStats" onclick="loadGoalStats()" style="color:#fc3f1d;border-color:#fc3f1d">Загрузить статистику целей</button>
+      <span style="display:flex;gap:6px">
+        <button class="pbtn" id="btnGoalsRefresh" onclick="refreshGoals()" title="Обновить список целей">↻</button>
+        <button class="pbtn" id="btnGoalStats" onclick="loadGoalStats()" style="color:#fc3f1d;border-color:#fc3f1d">Загрузить статистику целей</button>
+      </span>
     </div>
     <div id="goalsBody" style="padding:14px 18px;font-size:12px;color:#555;min-height:40px">Загружаем…</div>
     <div id="goalStatsBody" style="display:none;padding:0 18px 14px"></div>
@@ -815,25 +818,42 @@
   // ── Goals ──
   let _goalStatsData = null;
 
+  async function refreshGoals() {
+    const btn = document.getElementById('btnGoalsRefresh');
+    btn.disabled = true;
+    document.getElementById('goalsCard').style.display = '';
+    document.getElementById('goalsBody').textContent = 'Обновляем…';
+    try {
+      const r = await fetch(`/api/campaign_goals/${CAMPAIGN_ID}/refresh`, {method: 'POST'});
+      const data = await r.json();
+      renderGoalsCard(data);
+    } catch { document.getElementById('goalsBody').textContent = 'Ошибка сети'; }
+    finally { btn.disabled = false; }
+  }
+
+  function renderGoalsCard(data) {
+    const card = document.getElementById('goalsCard');
+    const body = document.getElementById('goalsBody');
+    if (!data.goals || !data.goals.length) {
+      card.style.display = 'none';
+      if (data.error) body.textContent = data.error;
+      return;
+    }
+    card.style.display = '';
+    document.getElementById('goalsCount').textContent = `${data.goals.length} ${data.goals.length === 1 ? 'цель' : 'целей'}`;
+    body.innerHTML = data.goals.map(g =>
+      `<span style="display:inline-block;margin-right:16px;margin-bottom:6px">
+        <span style="color:#ccc">${escHtml(g.name)}</span>
+        <span style="color:#444;font-size:10px;margin-left:4px">ID ${g.id}</span>
+      </span>`
+    ).join('');
+  }
+
   async function loadGoals() {
     try {
       const r = await fetch(`/api/campaign_goals/${CAMPAIGN_ID}`);
       const data = await r.json();
-      const card = document.getElementById('goalsCard');
-      const body = document.getElementById('goalsBody');
-      if (!data.ok || !data.goals || !data.goals.length) {
-        // No goals or error — hide card silently
-        card.style.display = 'none';
-        return;
-      }
-      card.style.display = '';
-      document.getElementById('goalsCount').textContent = `${data.goals.length} целей`;
-      body.innerHTML = data.goals.map(g =>
-        `<span style="display:inline-block;margin-right:16px;margin-bottom:6px">
-          <span style="color:#ccc">${escHtml(g.name)}</span>
-          <span style="color:#444;font-size:10px;margin-left:4px">ID ${g.id}</span>
-        </span>`
-      ).join('');
+      renderGoalsCard(data);
     } catch { /* silently ignore */ }
   }
 
