@@ -915,18 +915,110 @@ def search_queries_range(campaign_id):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+def _kw_cache_file(campaign_id):
+    return f"kw_cache_{campaign_id}.json"
+
+def _read_kw_cache(campaign_id):
+    path = _kw_cache_file(campaign_id)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                pass
+    return None
+
+def _write_kw_cache(campaign_id, keywords, date_from, date_to):
+    path = _kw_cache_file(campaign_id)
+    data = {
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "date_from": date_from,
+        "date_to": date_to,
+        "keywords": keywords,
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return data
+
+
 @app.route("/api/campaign_keywords/<int:campaign_id>")
 @login_required
 def campaign_keywords_endpoint(campaign_id):
-    date_from = request.args.get("from", "")
-    date_to = request.args.get("to", "")
-    if not date_from or not date_to:
-        return jsonify({"ok": False, "error": "Укажите период"}), 400
+    cached = _read_kw_cache(campaign_id)
+    if cached:
+        return jsonify({"ok": True, **cached})
+    # No cache yet — fetch fresh
+    date_to = datetime.now().strftime("%Y-%m-%d")
+    date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
     try:
         kws = get_keywords_with_stats(DIRECT_TOKEN, campaign_id, date_from, date_to)
-        return jsonify({"ok": True, "keywords": kws})
+        data = _write_kw_cache(campaign_id, kws, date_from, date_to)
+        return jsonify({"ok": True, **data})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/campaign_keywords/<int:campaign_id>/refresh", methods=["POST"])
+@login_required
+def campaign_keywords_refresh(campaign_id):
+    date_to = datetime.now().strftime("%Y-%m-%d")
+    date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    try:
+        kws = get_keywords_with_stats(DIRECT_TOKEN, campaign_id, date_from, date_to)
+        data = _write_kw_cache(campaign_id, kws, date_from, date_to)
+        return jsonify({"ok": True, **data})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/campaign_keywords/<int:campaign_id>/analyze", methods=["POST"])
+@login_required
+def campaign_keywords_analyze(campaign_id):
+    if not ANTHROPIC_API_KEY:
+        return jsonify({"ok": False, "error": "API ключ Claude не настроен"}), 503
+    cached = _read_kw_cache(campaign_id)
+    if not cached or not cached.get("keywords"):
+        return jsonify({"ok": False, "error": "Нет данных — сначала обновите список фраз"}), 400
+
+    kws = cached["keywords"]
+    period = f"{cached.get('date_from', '')} — {cached.get('date_to', '')}"
+    rows = "\n".join(
+        f"{k['keyword']} | {k['impressions']} показов | {k['clicks']} кликов | CTR {k['ctr']}% "
+        f"| ср.CPC {k['avg_cpc']} ₽ | расход {k['cost']} ₽"
+        + (f" | ставка {k['bid']} ₽" if k.get('bid') else "")
+        for k in kws
+    )
+    question = (request.json or {}).get("question", "").strip()
+    system = (
+        "Ты — эксперт по контекстной рекламе Яндекс.Директ. "
+        "Анализируй ключевые фразы кампании и давай конкретные actionable-рекомендации. "
+        "Будь краток и по делу. Используй цифры из данных."
+    )
+    if question:
+        user_msg = f"Период: {period}\n\nКлючевые фразы:\n{rows}\n\nВопрос: {question}"
+    else:
+        user_msg = (
+            f"Период: {period}\n\nКлючевые фразы кампании:\n{rows}\n\n"
+            "Проанализируй:\n"
+            "1. Самые эффективные фразы — стоит ли поднять ставку?\n"
+            "2. Неэффективные фразы — снизить ставку или приостановить?\n"
+            "3. Где есть потенциал роста?\n"
+            "4. Приоритетные действия (топ-3)."
+        )
+
+    import anthropic, httpx
+    _proxy = os.getenv("HTTPS_PROXY")
+    _http = httpx.Client(proxy=_proxy) if _proxy else None
+    claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=_http)
+    try:
+        resp = claude.messages.create(
+            model="claude-sonnet-4-6", max_tokens=1500,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        return jsonify({"ok": True, "analysis": resp.content[0].text})
+    except anthropic.APIError as e:
+        return jsonify({"ok": False, "error": f"Claude: {e.status_code} — {e.message}"}), 200
 
 
 if __name__ == "__main__":

@@ -330,11 +330,23 @@
   <!-- Keywords+bids card -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header">
-      Ключевые фразы — ставки и перспектива
-      <span id="kwBidsCount" class="card-count"></span>
+      <span>Ключевые фразы — ставки и перспектива <span id="kwBidsCount" class="card-count"></span></span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span id="kwBidsUpdated" style="font-size:11px;color:#444;font-weight:400"></span>
+        <button class="pbtn" id="btnKwRefresh" onclick="refreshKwBids()" title="Обновить данные из Яндекс.Директ (последние 30 дней)">↻ Обновить</button>
+        <button class="pbtn" id="btnKwAnalyze" onclick="analyzeKwBids()" style="color:#fc3f1d;border-color:#fc3f1d">✦ Анализ</button>
+      </span>
     </div>
     <div id="kwBidsBody" class="kw-bids-wrap">
       <div class="kw-loading" style="padding:20px">Загружаем данные…</div>
+    </div>
+    <div id="kwBidsAnalysis" style="display:none;padding:16px 20px;border-top:1px solid #1e1e2a">
+      <div style="font-size:11px;color:#555;margin-bottom:8px" id="kwAnalysisStatus"></div>
+      <div style="font-size:13px;color:#ccc;white-space:pre-wrap;line-height:1.6" id="kwAnalysisText"></div>
+      <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+        <input id="kwAnalysisQuestion" class="question-input" style="flex:1;min-width:200px" placeholder="Вопрос по этим фразам…" onkeydown="if(event.key==='Enter')askKwQuestion()">
+        <button class="btn btn-primary" style="padding:7px 12px;font-size:12px" onclick="askKwQuestion()">→</button>
+      </div>
     </div>
   </div>
 
@@ -792,40 +804,90 @@
     return '<span class="prospect-badge prospect-none">мало данных</span>';
   }
 
+  function renderKwBidsTable(data) {
+    if (!data.ok) {
+      document.getElementById('kwBidsBody').innerHTML = `<div class="kw-empty" style="padding:16px">Ошибка: ${data.error}</div>`;
+      return;
+    }
+    if (!data.keywords.length) {
+      document.getElementById('kwBidsBody').innerHTML = '<div class="kw-empty" style="padding:16px">Нет ключевых фраз (смарт-кампания или медийная)</div>';
+      return;
+    }
+    document.getElementById('kwBidsCount').textContent = `${data.keywords.length} фраз`;
+    if (data.updated_at) {
+      document.getElementById('kwBidsUpdated').textContent = `обновлено ${data.updated_at}`;
+    }
+    const rows = data.keywords.map(kw => `<tr>
+      <td class="kw-text" title="${kw.keyword}">${kw.keyword}</td>
+      <td class="bid-val">${kw.bid !== null ? kw.bid + ' ₽' : '—'}</td>
+      <td class="r">${kw.impressions.toLocaleString('ru-RU')}</td>
+      <td class="r ${kw.clicks > 0 ? 'hi' : ''}">${kw.clicks}</td>
+      <td class="r">${kw.ctr}%</td>
+      <td class="r">${kw.avg_cpc ? kw.avg_cpc + ' ₽' : '—'}</td>
+      <td class="r">${Math.round(kw.cost)} ₽</td>
+      <td>${prospectBadge(kw)}</td>
+    </tr>`).join('');
+    document.getElementById('kwBidsBody').innerHTML = `<table class="kw-bids-table">
+      <thead><tr>
+        <th>Ключевая фраза</th>
+        <th class="r">Ставка</th>
+        <th class="r">Показы</th>
+        <th class="r">Клики</th>
+        <th class="r">CTR</th>
+        <th class="r">Ср. CPC</th>
+        <th class="r">Расход</th>
+        <th>Перспектива</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
   async function loadKwBids() {
-    const dateFrom = document.getElementById('dateFrom')?.value || DATE_FROM;
-    const dateTo   = document.getElementById('dateTo')?.value   || DATE_TO;
-    const body = document.getElementById('kwBidsBody');
     try {
-      const r = await fetch(`/api/campaign_keywords/${CAMPAIGN_ID}?from=${dateFrom}&to=${dateTo}`);
+      const r = await fetch(`/api/campaign_keywords/${CAMPAIGN_ID}`);
+      renderKwBidsTable(await r.json());
+    } catch { document.getElementById('kwBidsBody').innerHTML = '<div class="kw-empty" style="padding:16px">Ошибка сети</div>'; }
+  }
+
+  async function refreshKwBids() {
+    const btn = document.getElementById('btnKwRefresh');
+    btn.disabled = true;
+    document.getElementById('kwBidsBody').innerHTML = '<div class="kw-loading" style="padding:20px">Загружаем свежие данные из Яндекс.Директ…</div>';
+    document.getElementById('kwBidsUpdated').textContent = '';
+    try {
+      const r = await fetch(`/api/campaign_keywords/${CAMPAIGN_ID}/refresh`, {method: 'POST'});
+      renderKwBidsTable(await r.json());
+    } catch { document.getElementById('kwBidsBody').innerHTML = '<div class="kw-empty" style="padding:16px">Ошибка сети</div>'; }
+    finally { btn.disabled = false; }
+  }
+
+  async function analyzeKwBids(question = '') {
+    const btn = document.getElementById('btnKwAnalyze');
+    const statusEl = document.getElementById('kwAnalysisStatus');
+    const textEl = document.getElementById('kwAnalysisText');
+    const panel = document.getElementById('kwBidsAnalysis');
+    btn.disabled = true;
+    panel.style.display = 'block';
+    statusEl.textContent = question ? 'Claude отвечает…' : 'Claude анализирует фразы…';
+    textEl.textContent = '';
+    try {
+      const r = await fetch(`/api/campaign_keywords/${CAMPAIGN_ID}/analyze`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question}),
+      });
       const data = await r.json();
-      if (!data.ok) { body.innerHTML = `<div class="kw-empty" style="padding:16px">Ошибка: ${data.error}</div>`; return; }
-      if (!data.keywords.length) { body.innerHTML = '<div class="kw-empty" style="padding:16px">Нет ключевых фраз (смарт-кампания или медийная)</div>'; return; }
-      document.getElementById('kwBidsCount').textContent = `${data.keywords.length} фраз`;
-      const rows = data.keywords.map(kw => `<tr>
-        <td class="kw-text" title="${kw.keyword}">${kw.keyword}</td>
-        <td class="bid-val">${kw.bid !== null ? kw.bid + ' ₽' : '—'}</td>
-        <td class="r">${kw.impressions.toLocaleString('ru-RU')}</td>
-        <td class="r ${kw.clicks > 0 ? 'hi' : ''}">${kw.clicks}</td>
-        <td class="r">${kw.ctr}%</td>
-        <td class="r">${kw.avg_cpc ? kw.avg_cpc + ' ₽' : '—'}</td>
-        <td class="r">${Math.round(kw.cost)} ₽</td>
-        <td>${prospectBadge(kw)}</td>
-      </tr>`).join('');
-      body.innerHTML = `<table class="kw-bids-table">
-        <thead><tr>
-          <th>Ключевая фраза</th>
-          <th class="r">Ставка</th>
-          <th class="r">Показы</th>
-          <th class="r">Клики</th>
-          <th class="r">CTR</th>
-          <th class="r">Ср. CPC</th>
-          <th class="r">Расход</th>
-          <th>Перспектива</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-    } catch { body.innerHTML = '<div class="kw-empty" style="padding:16px">Ошибка сети</div>'; }
+      statusEl.textContent = '';
+      if (data.ok) { textEl.textContent = data.analysis; }
+      else { statusEl.textContent = 'Ошибка: ' + data.error; statusEl.style.color = '#f08080'; }
+    } catch { statusEl.textContent = 'Ошибка сети'; statusEl.style.color = '#f08080'; }
+    finally { btn.disabled = false; }
+  }
+
+  function askKwQuestion() {
+    const q = document.getElementById('kwAnalysisQuestion').value.trim();
+    if (!q) return;
+    document.getElementById('kwAnalysisQuestion').value = '';
+    analyzeKwBids(q);
   }
 
   function useHint(el) {
