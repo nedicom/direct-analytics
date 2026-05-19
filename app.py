@@ -9,6 +9,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session
 from direct_client import (
     get_campaigns, get_campaigns_by_ids, get_campaign_stats, get_keyword_stats,
     get_negatives, update_campaign_negatives, update_adgroup_negatives, get_search_queries,
+    get_keywords_with_stats,
 )
 
 load_dotenv()
@@ -896,6 +897,34 @@ def keywords(campaign_id, date):
     try:
         kws = get_keyword_stats(DIRECT_TOKEN, campaign_id, date)
         return jsonify({"ok": True, "keywords": kws, "date": date})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/search_queries/<int:campaign_id>")
+@login_required
+def search_queries_range(campaign_id):
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
+    if not date_from or not date_to:
+        return jsonify({"ok": False, "error": "Укажите период"}), 400
+    try:
+        queries = get_search_queries(DIRECT_TOKEN, campaign_id, date_from, date_to)
+        return jsonify({"ok": True, "queries": queries})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/campaign_keywords/<int:campaign_id>")
+@login_required
+def campaign_keywords_endpoint(campaign_id):
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
+    if not date_from or not date_to:
+        return jsonify({"ok": False, "error": "Укажите период"}), 400
+    try:
+        kws = get_keywords_with_stats(DIRECT_TOKEN, campaign_id, date_from, date_to)
+        return jsonify({"ok": True, "keywords": kws})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

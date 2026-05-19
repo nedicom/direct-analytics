@@ -206,6 +206,23 @@
 
     @media (max-width: 800px) { .neg-section { grid-template-columns: 1fr; } }
 
+    /* Keywords+bids card */
+    .kw-bids-wrap { overflow-x: auto; }
+    .kw-bids-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .kw-bids-table th { padding: 8px 12px; text-align: left; color: #555; font-weight: 500; background: #16161f; position: sticky; top: 0; white-space: nowrap; }
+    .kw-bids-table th.r { text-align: right; }
+    .kw-bids-table td { padding: 7px 12px; border-bottom: 1px solid #1a1a24; }
+    .kw-bids-table tr:last-child td { border-bottom: none; }
+    .kw-bids-table tr:hover td { background: #1e1e2c; }
+    .kw-bids-table td.r { text-align: right; color: #aaa; }
+    .kw-bids-table td.kw-text { color: #ccc; font-family: monospace; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kw-bids-table td.bid-val { text-align: right; color: #fc3f1d; font-weight: 600; }
+    .prospect-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+    .prospect-high { background: #1a2e1a; color: #4caf50; }
+    .prospect-mid  { background: #2a2a1a; color: #c8a040; }
+    .prospect-low  { background: #2e1a1a; color: #f08080; }
+    .prospect-none { background: #1e1e2a; color: #444; }
+
     @media (max-width: 1000px) {
       .charts-grid { grid-template-columns: 1fr 1fr; }
       .main-grid   { grid-template-columns: 1fr; }
@@ -310,6 +327,17 @@
     </div>
   </div>
 
+  <!-- Keywords+bids card -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header">
+      Ключевые фразы — ставки и перспектива
+      <span id="kwBidsCount" class="card-count"></span>
+    </div>
+    <div id="kwBidsBody" class="kw-bids-wrap">
+      <div class="kw-loading" style="padding:20px">Загружаем данные…</div>
+    </div>
+  </div>
+
   <!-- Highlights -->
   {% if best_clicks_day or worst_cost_day %}
   <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
@@ -354,6 +382,7 @@
   <!-- Toolbar -->
   <div class="toolbar">
     <button class="btn btn-primary" id="btnAnalyze" onclick="analyzeData()">✦ Анализ Claude</button>
+    <button class="pbtn" onclick="showQueriesRange()" title="Поисковые запросы за выбранный период">Запросы периода</button>
     <button class="pbtn" onclick="applyFilter()" title="Загрузить свежие данные из Яндекс.Директ" style="margin-left:4px">↻ Обновить</button>
     <div class="spinner" id="spinner"></div>
     <span class="status-txt" id="statusTxt"></span>
@@ -546,6 +575,8 @@
   const CHART_IMP    = {{ chart_impressions | safe }};
   const CHART_CTRS   = {{ chart_ctrs        | safe }};
   const DAILY_DATA   = {{ daily_table       | safe }};
+  const DATE_FROM    = "{{ date_from }}";
+  const DATE_TO      = "{{ date_to }}";
 
   // ── Date filter ──
   function setPreset(days) {
@@ -685,7 +716,7 @@
     showHistory(h.analysis, h.title || '', !!h.is_question);
   }
 
-  // ── Keywords modal ──
+  // ── Keywords modal (per day) ──
   async function showKeywords(date) {
     const overlay = document.getElementById('kwOverlay');
     const body = document.getElementById('kwBody');
@@ -714,8 +745,89 @@
       </table>`;
     } catch { body.innerHTML = '<div class="kw-empty">Ошибка сети. Попробуйте снова.</div>'; }
   }
+
+  // ── Search queries for date range (toolbar button) ──
+  async function showQueriesRange() {
+    const dateFrom = document.getElementById('dateFrom').value || DATE_FROM;
+    const dateTo   = document.getElementById('dateTo').value   || DATE_TO;
+    const overlay = document.getElementById('kwOverlay');
+    const body    = document.getElementById('kwBody');
+    const title   = document.getElementById('kwTitle');
+    const fmt = d => { const [y,m,dd] = d.split('-'); return `${dd}.${m}.${y}`; };
+    title.textContent = `Поисковые запросы — ${fmt(dateFrom)} — ${fmt(dateTo)}`;
+    body.innerHTML = '<div class="kw-loading">Загружаем данные из Яндекс.Директ…</div>';
+    overlay.classList.add('open');
+    try {
+      const r = await fetch(`/api/search_queries/${CAMPAIGN_ID}?from=${dateFrom}&to=${dateTo}`);
+      const data = await r.json();
+      if (!data.ok) { body.innerHTML = `<div class="kw-empty">Ошибка: ${data.error}</div>`; return; }
+      if (!data.queries.length) { body.innerHTML = '<div class="kw-empty">Нет данных за период</div>'; return; }
+      const rows = data.queries.map(q => `<tr>
+        <td class="q" title="${q.query}">${q.query}</td>
+        <td class="q" style="color:#666;font-size:11px" title="${q.keyword}">${q.keyword}</td>
+        <td class="r">${q.impressions.toLocaleString('ru-RU')}</td>
+        <td class="r ${q.clicks > 0 ? 'hi' : ''}">${q.clicks}</td>
+        <td class="r">${q.ctr}%</td>
+        <td class="r">${q.avg_cpc} ₽</td>
+        <td class="r">${Math.round(q.cost)} ₽</td>
+      </tr>`).join('');
+      body.innerHTML = `<table class="kw-table">
+        <thead><tr>
+          <th>Запрос пользователя</th><th>Ключевая фраза</th>
+          <th class="r">Показы</th><th class="r">Клики</th><th class="r">CTR</th><th class="r">CPC</th><th class="r">Расход</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    } catch { body.innerHTML = '<div class="kw-empty">Ошибка сети. Попробуйте снова.</div>'; }
+  }
+
   function closeKwModal() { document.getElementById('kwOverlay').classList.remove('open'); }
   function closeKw(e) { if (e.target === document.getElementById('kwOverlay')) closeKwModal(); }
+
+  // ── Keywords+bids card ──
+  function prospectBadge(kw) {
+    if (kw.impressions === 0) return '<span class="prospect-badge prospect-none">нет данных</span>';
+    if (kw.ctr >= 3 && kw.clicks >= 5) return '<span class="prospect-badge prospect-high">↑ высокий</span>';
+    if (kw.ctr < 0.3 && kw.impressions > 100) return '<span class="prospect-badge prospect-low">↓ слабый</span>';
+    if (kw.ctr >= 1 || kw.clicks >= 2) return '<span class="prospect-badge prospect-mid">→ средний</span>';
+    return '<span class="prospect-badge prospect-none">мало данных</span>';
+  }
+
+  async function loadKwBids() {
+    const dateFrom = document.getElementById('dateFrom')?.value || DATE_FROM;
+    const dateTo   = document.getElementById('dateTo')?.value   || DATE_TO;
+    const body = document.getElementById('kwBidsBody');
+    try {
+      const r = await fetch(`/api/campaign_keywords/${CAMPAIGN_ID}?from=${dateFrom}&to=${dateTo}`);
+      const data = await r.json();
+      if (!data.ok) { body.innerHTML = `<div class="kw-empty" style="padding:16px">Ошибка: ${data.error}</div>`; return; }
+      if (!data.keywords.length) { body.innerHTML = '<div class="kw-empty" style="padding:16px">Нет ключевых фраз (смарт-кампания или медийная)</div>'; return; }
+      document.getElementById('kwBidsCount').textContent = `${data.keywords.length} фраз`;
+      const rows = data.keywords.map(kw => `<tr>
+        <td class="kw-text" title="${kw.keyword}">${kw.keyword}</td>
+        <td class="bid-val">${kw.bid !== null ? kw.bid + ' ₽' : '—'}</td>
+        <td class="r">${kw.impressions.toLocaleString('ru-RU')}</td>
+        <td class="r ${kw.clicks > 0 ? 'hi' : ''}">${kw.clicks}</td>
+        <td class="r">${kw.ctr}%</td>
+        <td class="r">${kw.avg_cpc ? kw.avg_cpc + ' ₽' : '—'}</td>
+        <td class="r">${Math.round(kw.cost)} ₽</td>
+        <td>${prospectBadge(kw)}</td>
+      </tr>`).join('');
+      body.innerHTML = `<table class="kw-bids-table">
+        <thead><tr>
+          <th>Ключевая фраза</th>
+          <th class="r">Ставка</th>
+          <th class="r">Показы</th>
+          <th class="r">Клики</th>
+          <th class="r">CTR</th>
+          <th class="r">Ср. CPC</th>
+          <th class="r">Расход</th>
+          <th>Перспектива</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    } catch { body.innerHTML = '<div class="kw-empty" style="padding:16px">Ошибка сети</div>'; }
+  }
 
   function useHint(el) {
     document.getElementById('customQuestion').value = el.textContent;
@@ -1102,6 +1214,7 @@
   });
 
   loadNegatives();
+  loadKwBids();
 </script>
 </body>
 </html>

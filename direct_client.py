@@ -329,6 +329,54 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
     return result
 
 
+def get_keywords_with_stats(token: str, campaign_id: int, date_from: str, date_to: str) -> list[dict]:
+    """Returns campaign keywords with bids and performance stats via CRITERIA_PERFORMANCE_REPORT."""
+    body = _reports_request(token, {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {
+                "DateFrom": date_from,
+                "DateTo": date_to,
+                "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
+            },
+            # Columns: Criterion(0), CriteriaType(1), Impressions(2), Clicks(3), Cost(4), Ctr(5), AvgCpc(6), Bid(7)
+            "FieldNames": ["Criterion", "CriteriaType", "Impressions", "Clicks", "Cost", "Ctr", "AvgCpc", "Bid"],
+            "ReportName": f"kws_{campaign_id}_{date_from}_{date_to}",
+            "ReportType": "CRITERIA_PERFORMANCE_REPORT",
+            "DateRangeType": "CUSTOM_DATE",
+            "Format": "TSV",
+            "IncludeVAT": "YES",
+            "IncludeDiscount": "NO",
+        },
+    })
+
+    def _int(s): return int(s) if s and s != "--" else 0
+    def _float(s): return float(s) if s and s != "--" else 0.0
+
+    result = []
+    for line in body.split("\n")[2:]:
+        parts = line.split("\t")
+        if len(parts) < 8:
+            continue
+        try:
+            if parts[1] != "KEYWORD":
+                continue
+            result.append({
+                "keyword": parts[0],
+                "impressions": _int(parts[2]),
+                "clicks": _int(parts[3]),
+                "cost": round(_float(parts[4]), 2),
+                "ctr": round(_float(parts[5]), 2),
+                "avg_cpc": round(_float(parts[6]), 2),
+                "bid": round(_float(parts[7]), 2) if parts[7] not in ("--", "", "0") else None,
+            })
+        except (ValueError, IndexError):
+            continue
+
+    result.sort(key=lambda x: x["clicks"], reverse=True)
+    return result
+
+
 def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
     """Returns search queries for a campaign on a specific date, sorted by clicks desc."""
     body = _reports_request(token, {
