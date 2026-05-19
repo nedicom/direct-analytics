@@ -574,6 +574,8 @@ def campaign_detail(campaign_id):
     for d, v in sorted_days:
         ctr = round(v["clicks"] / v["impressions"] * 100, 2) if v["impressions"] else 0
         cpc = round(v["cost"] / v["clicks"], 2) if v["clicks"] else 0
+        conv = v.get("conversions", 0)
+        cpa = round(v["cost"] / conv, 2) if conv else 0
         daily_table.append({
             "date": d,
             "impressions": v["impressions"],
@@ -581,7 +583,12 @@ def campaign_detail(campaign_id):
             "ctr": ctr,
             "cost": round(v["cost"], 2),
             "cpc": cpc,
+            "conversions": conv,
+            "cpa": cpa,
         })
+
+    total_conversions = totals.get("conversions", 0)
+    total_cpa = round(totals.get("cost", 0) / total_conversions, 2) if total_conversions else 0
 
     ctype = campaign_meta.get("Type", "")
     state = campaign_meta.get("State", "")
@@ -618,6 +625,8 @@ def campaign_detail(campaign_id):
         best_ctr_day=best_ctr_day,
         best_clicks_day=best_clicks_day,
         worst_cost_day=worst_cost_day,
+        total_conversions=total_conversions,
+        total_cpa=total_cpa,
     )
 
 

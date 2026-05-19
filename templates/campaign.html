@@ -356,6 +356,18 @@
         {% else %}<span class="stat-badge badge-flat">= прошлая</span>{% endif %}
       {% endif %}
     </div>
+    {% if total_conversions > 0 %}
+    <div class="stat-card">
+      <div class="stat-label">Конверсии</div>
+      <div class="stat-value">{{ total_conversions }}</div>
+      <div class="stat-sub">целей за период</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">CPA</div>
+      <div class="stat-value">{{ total_cpa }} ₽</div>
+      <div class="stat-sub">стоимость конверсии</div>
+    </div>
+    {% endif %}
   </div>
 
   <!-- Keywords+bids card -->
@@ -466,6 +478,10 @@
               <th onclick="sortBy('ctr')"         id="th-ctr" style="text-align:right">CTR <span class="arr"></span></th>
               <th onclick="sortBy('cost')"        id="th-cost" style="text-align:right">Расход ₽ <span class="arr"></span></th>
               <th onclick="sortBy('cpc')"         id="th-cpc" style="text-align:right">CPC ₽ <span class="arr"></span></th>
+              {% if total_conversions > 0 %}
+              <th onclick="sortBy('conversions')" id="th-conversions" style="text-align:right">Конв. <span class="arr"></span></th>
+              <th onclick="sortBy('cpa')"         id="th-cpa" style="text-align:right">CPA ₽ <span class="arr"></span></th>
+              {% endif %}
             </tr>
           </thead>
           <tbody id="dailyTbody"></tbody>
@@ -633,6 +649,7 @@
   const CHART_IMP    = {{ chart_impressions | safe }};
   const CHART_CTRS   = {{ chart_ctrs        | safe }};
   const DAILY_DATA   = {{ daily_table       | safe }};
+  const HAS_CONV     = {{ (total_conversions > 0) | tojson }};
   const DATE_FROM    = "{{ date_from }}";
   const DATE_TO      = "{{ date_to }}";
 
@@ -686,7 +703,8 @@
       impressions: acc.impressions + r.impressions,
       clicks: acc.clicks + r.clicks,
       cost: acc.cost + r.cost,
-    }), {impressions:0, clicks:0, cost:0});
+      conversions: acc.conversions + (r.conversions || 0),
+    }), {impressions:0, clicks:0, cost:0, conversions:0});
     const totCtr = tot.impressions ? (tot.clicks / tot.impressions * 100).toFixed(2) : 0;
     const totCpc = tot.clicks ? (tot.cost / tot.clicks).toFixed(2) : 0;
 
@@ -699,6 +717,8 @@
       const isWorst = r.cost === maxCost && maxCost > 0 && !isBest;
       const cls = (isBest ? 'best-day' : (isWorst ? 'worst-day' : '')) + ' day-row';
       const ctrCls = r.ctr < 1 && r.impressions > 50 ? 'num lo' : (r.ctr > 5 ? 'num hi' : 'num');
+      const convCell = HAS_CONV ? `<td class="num">${r.conversions > 0 ? r.conversions : '—'}</td>
+        <td class="num">${r.cpa > 0 ? r.cpa + ' ₽' : '—'}</td>` : '';
       return `<tr class="${cls}" onclick="toggleDayQueries('${r.date}')">
         <td>${fmtDate(r.date)} <span id="day-arr-${r.date}" style="color:#333;font-size:10px">▸</span></td>
         <td class="num">${fmtNum(r.impressions)}</td>
@@ -706,6 +726,7 @@
         <td class="${ctrCls}">${r.ctr}%</td>
         <td class="num">${fmtNum(Math.round(r.cost))} ₽</td>
         <td class="num">${r.cpc > 0 ? r.cpc + ' ₽' : '—'}</td>
+        ${convCell}
       </tr>
       <tr id="day-exp-${r.date}" style="display:none">
         <td colspan="6" style="padding:0;border-bottom:1px solid #1a1a24">
@@ -714,6 +735,7 @@
       </tr>`;
     }).join('');
 
+    const totCpa = tot.conversions > 0 ? (tot.cost / tot.conversions).toFixed(2) : 0;
     const totalRow = `<tr class="total-row">
       <td>Итого</td>
       <td class="num">${fmtNum(tot.impressions)}</td>
@@ -721,13 +743,14 @@
       <td class="num">${totCtr}%</td>
       <td class="num">${fmtNum(Math.round(tot.cost))} ₽</td>
       <td class="num">${totCpc > 0 ? totCpc + ' ₽' : '—'}</td>
+      ${HAS_CONV ? `<td class="num">${tot.conversions > 0 ? tot.conversions : '—'}</td><td class="num">${totCpa > 0 ? totCpa + ' ₽' : '—'}</td>` : ''}
     </tr>`;
 
     tbody.innerHTML = rows + totalRow;
   }
 
   function updateSortHeaders() {
-    ['date','impressions','clicks','ctr','cost','cpc'].forEach(col => {
+    ['date','impressions','clicks','ctr','cost','cpc','conversions','cpa'].forEach(col => {
       const th = document.getElementById('th-' + col);
       if (!th) return;
       th.classList.toggle('sort-active', col === sortCol);

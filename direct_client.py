@@ -70,7 +70,7 @@ def get_campaign_stats(
                 "DateFrom": date_from,
                 "DateTo": date_to,
             },
-            "FieldNames": ["CampaignId", "CampaignName", "Date", "Impressions", "Clicks", "Cost", "Ctr"],
+            "FieldNames": ["CampaignId", "CampaignName", "Date", "Impressions", "Clicks", "Cost", "Ctr", "Conversions"],
             "ReportName": f"stats_{date_from}_{date_to}",
             "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
             "DateRangeType": "CUSTOM_DATE",
@@ -107,11 +107,13 @@ def get_campaign_stats(
             impressions = int(parts[3]) if parts[3] != "--" else 0
             clicks = int(parts[4]) if parts[4] != "--" else 0
             cost = float(parts[5]) if parts[5] != "--" else 0.0
+            conversions = int(parts[7]) if len(parts) > 7 and parts[7] not in ("--", "") else 0
 
             if cid not in result:
                 result[cid] = {
                     "name": name,
                     "impressions": 0, "clicks": 0, "cost": 0.0, "ctr": 0.0,
+                    "conversions": 0,
                     "last7d_cost": 0.0, "last7d_clicks": 0, "last7d_impressions": 0,
                     "prev7d_cost": 0.0, "prev7d_clicks": 0, "prev7d_impressions": 0,
                     "daily": {},
@@ -119,12 +121,14 @@ def get_campaign_stats(
             result[cid]["impressions"] += impressions
             result[cid]["clicks"] += clicks
             result[cid]["cost"] += cost
+            result[cid]["conversions"] += conversions
 
             if date not in result[cid]["daily"]:
-                result[cid]["daily"][date] = {"impressions": 0, "clicks": 0, "cost": 0.0}
+                result[cid]["daily"][date] = {"impressions": 0, "clicks": 0, "cost": 0.0, "conversions": 0}
             result[cid]["daily"][date]["impressions"] += impressions
             result[cid]["daily"][date]["clicks"] += clicks
             result[cid]["daily"][date]["cost"] += cost
+            result[cid]["daily"][date]["conversions"] += conversions
 
             if date >= seven_days_ago:
                 result[cid]["last7d_cost"] += cost
@@ -136,10 +140,11 @@ def get_campaign_stats(
                 result[cid]["prev7d_impressions"] += impressions
 
             if date not in daily:
-                daily[date] = {"impressions": 0, "clicks": 0, "cost": 0.0}
+                daily[date] = {"impressions": 0, "clicks": 0, "cost": 0.0, "conversions": 0}
             daily[date]["impressions"] += impressions
             daily[date]["clicks"] += clicks
             daily[date]["cost"] += cost
+            daily[date]["conversions"] += conversions
 
         except (ValueError, IndexError):
             continue
