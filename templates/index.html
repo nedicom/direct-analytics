@@ -377,6 +377,7 @@
   <div class="toolbar">
     <button class="btn btn-secondary" id="btnRefresh" onclick="refreshData()">↻ Обновить</button>
     <button class="btn btn-primary"   id="btnAnalyze" onclick="analyzeData()">✦ Анализ Claude</button>
+    <button class="btn btn-secondary" id="btnGoals" onclick="refreshGoals()">🎯 <span id="goalsLabel">Загрузить цели</span></button>
     <div class="spinner" id="spinner"></div>
     <span class="status-txt" id="statusTxt"></span>
     <a href="/logout" style="margin-left:auto;font-size:12px;color:#444;text-decoration:none;">Выйти</a>
@@ -770,10 +771,40 @@
     });
   }
 
+  // ── Goals ──
+  async function refreshGoals() {
+    const btn = document.getElementById('btnGoals');
+    const label = document.getElementById('goalsLabel');
+    btn.disabled = true;
+    label.textContent = 'Загружаем…';
+    try {
+      const r = await fetch('/api/goals/refresh', {method: 'POST'});
+      const data = await r.json();
+      if (data.ok) {
+        label.textContent = `${data.goals.length} целей загружено`;
+      } else {
+        label.textContent = 'Ошибка: ' + data.error;
+      }
+    } catch { label.textContent = 'Ошибка сети'; }
+    finally { btn.disabled = false; }
+  }
+
+  async function loadGoalsStatus() {
+    try {
+      const r = await fetch('/api/goals');
+      const data = await r.json();
+      const label = document.getElementById('goalsLabel');
+      if (data.goals && data.goals.length) {
+        label.textContent = `${data.goals.length} целей · ${data.updated_at || ''}`;
+      }
+    } catch {}
+  }
+
   // ── Init ──
   renderTable();
   updateSortHeaders();
   initCharts();
+  loadGoalsStatus();
 </script>
 
 </body>

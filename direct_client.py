@@ -474,85 +474,85 @@ def set_keyword_bid(token: str, keyword_id: int, bid: float) -> None:
             raise Exception(item_errors[0].get("Message", "Ошибка установки ставки"))
 
 
-def get_campaign_goals(token: str, campaign_id: int) -> dict:
-    """Fetch Metrica goal names for a campaign via counter ID.
-    Returns {"goals": [{id, name}], "error": str|None}"""
+_CAMPAIGN_TYPE_MAP = {
+    "TEXT_CAMPAIGN":         ("TextCampaignFieldNames",        "TextCampaign",        "CounterIds", True),
+    "UNIFIED_CAMPAIGN":      ("UnifiedCampaignFieldNames",     "UnifiedCampaign",     "CounterIds", True),
+    "DYNAMIC_TEXT_CAMPAIGN": ("DynamicTextCampaignFieldNames", "DynamicTextCampaign", "CounterIds", True),
+    "MOBILE_APP_CAMPAIGN":   ("MobileAppCampaignFieldNames",   "MobileAppCampaign",   "CounterIds", True),
+    "SMART_CAMPAIGN":        ("SmartCampaignFieldNames",       "SmartCampaign",       "CounterId",  False),
+    "CPM_BANNER_CAMPAIGN":   ("CpmBannerCampaignFieldNames",   "CpmBannerCampaign",   "CounterIds", True),
+    "MCBANNER_CAMPAIGN":     ("McBannerCampaignFieldNames",    "McBannerCampaign",    "CounterIds", True),
+}
+
+
+def _get_campaign_type(sess, token: str, campaign_id: int) -> str:
+    resp = sess.post(DIRECT_API_URL + "campaigns", json={
+        "method": "get",
+        "params": {"SelectionCriteria": {"Ids": [campaign_id]}, "FieldNames": ["Id", "Type"]},
+    }, headers=_headers(token))
+    camps = resp.json().get("result", {}).get("Campaigns", [])
+    return camps[0].get("Type", "") if camps else ""
+
+
+def get_counter_goals(token: str, counter_id: int) -> list[dict]:
+    """Fetch all goals from a Metrica counter. Returns [{id, name}]."""
     sess = requests.Session()
     sess.trust_env = False
+    r = sess.get(
+        f"https://api-metrika.yandex.net/management/v1/counter/{counter_id}/goals",
+        headers={"Authorization": f"OAuth {token}"},
+        timeout=10,
+    )
+    if r.status_code == 403:
+        raise Exception("Нет доступа к Метрике — добавьте разрешение metrika:read в OAuth-приложение")
+    if r.status_code != 200:
+        raise Exception(f"Метрика API: HTTP {r.status_code}")
+    return [{"id": g["id"], "name": g.get("name", f"Цель {g['id']}")} for g in r.json().get("goals", [])]
 
-    # Step 1: get campaign type
-    try:
-        resp = sess.post(
-            DIRECT_API_URL + "campaigns",
-            json={"method": "get", "params": {
-                "SelectionCriteria": {"Ids": [campaign_id]},
-                "FieldNames": ["Id", "Type"],
-            }},
-            headers=_headers(token),
-        )
-        camps = resp.json().get("result", {}).get("Campaigns", [])
-        ctype = camps[0].get("Type", "") if camps else ""
-    except Exception as e:
-        return {"goals": [], "error": str(e)}
 
-    # Step 2: fetch counter ID using the correct type-specific field name
-    # TextCampaign/UnifiedCampaign use CounterIds (array), SmartCampaign uses CounterId (int)
-    TYPE_MAP = {
-        "TEXT_CAMPAIGN":         ("TextCampaignFieldNames",         "TextCampaign",         "CounterIds", True),
-        "UNIFIED_CAMPAIGN":      ("UnifiedCampaignFieldNames",      "UnifiedCampaign",      "CounterIds", True),
-        "DYNAMIC_TEXT_CAMPAIGN": ("DynamicTextCampaignFieldNames",  "DynamicTextCampaign",  "CounterIds", True),
-        "MOBILE_APP_CAMPAIGN":   ("MobileAppCampaignFieldNames",    "MobileAppCampaign",    "CounterIds", True),
-        "SMART_CAMPAIGN":        ("SmartCampaignFieldNames",        "SmartCampaign",        "CounterId",  False),
-        "CPM_BANNER_CAMPAIGN":   ("CpmBannerCampaignFieldNames",    "CpmBannerCampaign",    "CounterIds", True),
-        "MCBANNER_CAMPAIGN":     ("McBannerCampaignFieldNames",     "McBannerCampaign",     "CounterIds", True),
-    }
-    mapping = TYPE_MAP.get(ctype)
+def get_campaign_counter_id(token: str, campaign_id: int) -> int | None:
+    """Returns the Metrica counter ID for a campaign, or None."""
+    sess = requests.Session()
+    sess.trust_env = False
+    ctype = _get_campaign_type(sess, token, campaign_id)
+    mapping = _CAMPAIGN_TYPE_MAP.get(ctype)
     if not mapping:
-        return {"goals": [], "error": f"Тип кампании {ctype!r} не поддерживается"}
-
+        return None
     fn_key, sub_key, counter_field, is_array = mapping
+    resp = sess.post(DIRECT_API_URL + "campaigns", json={
+        "method": "get",
+        "params": {"SelectionCriteria": {"Ids": [campaign_id]}, "FieldNames": ["Id"], fn_key: [counter_field]},
+    }, headers=_headers(token))
+    camps = resp.json().get("result", {}).get("Campaigns", [])
+    sub = camps[0].get(sub_key, {}) if camps else {}
+    raw = sub.get(counter_field)
+    if is_array:
+        ids = (raw.get("Items") if isinstance(raw, dict) else raw) or []
+        return ids[0] if ids else None
+    return raw if raw else None
+
+
+def get_campaign_goal_ids(token: str, campaign_id: int) -> list[int]:
+    """Returns goal IDs from campaign PriorityGoals (strategy optimization targets)."""
+    sess = requests.Session()
+    sess.trust_env = False
+    ctype = _get_campaign_type(sess, token, campaign_id)
+    mapping = _CAMPAIGN_TYPE_MAP.get(ctype)
+    if not mapping:
+        return []
+    fn_key, sub_key = mapping[0], mapping[1]
     try:
-        resp2 = sess.post(
-            DIRECT_API_URL + "campaigns",
-            json={"method": "get", "params": {
-                "SelectionCriteria": {"Ids": [campaign_id]},
-                "FieldNames": ["Id"],
-                fn_key: [counter_field],
-            }},
-            headers=_headers(token),
-        )
-        camps2 = resp2.json().get("result", {}).get("Campaigns", [])
-        sub = camps2[0].get(sub_key, {}) if camps2 else {}
-        raw = sub.get(counter_field)
-        if is_array:
-            counter_ids = (raw.get("Items") if isinstance(raw, dict) else raw) or []
-        else:
-            counter_ids = [raw] if raw else []
-    except Exception as e:
-        return {"goals": [], "error": str(e)}
-
-    if not counter_ids:
-        return {"goals": [], "error": "Счётчик Яндекс.Метрики не подключён к кампании"}
-
-    goals = []
-    for cid in counter_ids[:3]:
-        try:
-            r = sess.get(
-                f"https://api-metrika.yandex.net/management/v1/counter/{cid}/goals",
-                headers={"Authorization": f"OAuth {token}"},
-                timeout=10,
-            )
-            if r.status_code == 403:
-                return {"goals": [], "error": "Нет доступа к Метрике — добавьте разрешение metrika:read в OAuth-приложение"}
-            if r.status_code == 200:
-                for g in r.json().get("goals", []):
-                    goals.append({"id": g["id"], "name": g.get("name", f"Цель {g['id']}")})
-        except Exception:
-            pass
-
-    if not goals:
-        return {"goals": [], "error": "Цели не найдены в счётчике Метрики"}
-    return {"goals": goals, "error": None}
+        resp = sess.post(DIRECT_API_URL + "campaigns", json={
+            "method": "get",
+            "params": {"SelectionCriteria": {"Ids": [campaign_id]}, "FieldNames": ["Id"], fn_key: ["PriorityGoals"]},
+        }, headers=_headers(token))
+        camps = resp.json().get("result", {}).get("Campaigns", [])
+        sub = camps[0].get(sub_key, {}) if camps else {}
+        pg = sub.get("PriorityGoals", {})
+        items = pg.get("Items", []) if isinstance(pg, dict) else []
+        return [item["GoalId"] for item in items if "GoalId" in item]
+    except Exception:
+        return []
 
 
 def get_goal_period_stats(token: str, campaign_id: int, goal_id: int,

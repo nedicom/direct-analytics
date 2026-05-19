@@ -10,7 +10,7 @@ from direct_client import (
     get_campaigns, get_campaigns_by_ids, get_campaign_stats, get_keyword_stats,
     get_negatives, update_campaign_negatives, update_adgroup_negatives, get_search_queries,
     get_keywords_with_stats, get_keyword_bids, set_keyword_bid,
-    get_campaign_goals, get_goal_period_stats,
+    get_counter_goals, get_campaign_counter_id, get_campaign_goal_ids, get_goal_period_stats,
 )
 
 load_dotenv()
@@ -1088,15 +1088,61 @@ def _write_json_cache(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+GLOBAL_GOALS_CACHE = "/tmp/direct_goals_global.json"
+
+
+@app.route("/api/goals")
+@login_required
+def global_goals():
+    cached = _read_json_cache(GLOBAL_GOALS_CACHE, 24 * 3600)
+    if cached:
+        return jsonify({"ok": True, **cached})
+    return jsonify({"ok": True, "goals": [], "counter_id": None, "updated_at": None})
+
+
+@app.route("/api/goals/refresh", methods=["POST"])
+@login_required
+def global_goals_refresh():
+    try:
+        campaigns = get_campaigns(DIRECT_TOKEN)
+        counter_id = None
+        for c in campaigns[:20]:
+            cid = get_campaign_counter_id(DIRECT_TOKEN, c["Id"])
+            if cid:
+                counter_id = cid
+                break
+        if not counter_id:
+            return jsonify({"ok": False, "error": "Нет счётчика Метрики ни в одной кампании"}), 400
+        goals = get_counter_goals(DIRECT_TOKEN, counter_id)
+        data = {
+            "goals": goals,
+            "counter_id": counter_id,
+            "updated_at": datetime.now().strftime("%d.%m.%Y %H:%M"),
+        }
+        _write_json_cache(GLOBAL_GOALS_CACHE, data)
+        return jsonify({"ok": True, **data})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/api/campaign_goals/<int:campaign_id>/refresh", methods=["POST"])
 @app.route("/api/campaign_goals/<int:campaign_id>")
 @login_required
 def campaign_goals_endpoint(campaign_id):
+    global_data = _read_json_cache(GLOBAL_GOALS_CACHE, 24 * 3600)
+    all_goals = (global_data or {}).get("goals", [])
+    if not all_goals:
+        return jsonify({"ok": True, "goals": [], "error": "Сначала загрузите цели на главной странице", "all_loaded": False})
     try:
-        result = get_campaign_goals(DIRECT_TOKEN, campaign_id)
-        return jsonify({"ok": True, **result})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        goal_ids = get_campaign_goal_ids(DIRECT_TOKEN, campaign_id)
+    except Exception:
+        goal_ids = []
+    if goal_ids:
+        id_set = set(goal_ids)
+        goals = [g for g in all_goals if g["id"] in id_set]
+    else:
+        goals = all_goals  # fallback: show all if no PriorityGoals configured
+    return jsonify({"ok": True, "goals": goals, "error": None, "all_loaded": True})
 
 
 @app.route("/api/campaign_goal_stats/<int:campaign_id>")
