@@ -834,12 +834,12 @@
   function renderGoalsCard(data) {
     const card = document.getElementById('goalsCard');
     const body = document.getElementById('goalsBody');
+    card.style.display = '';
     if (!data.goals || !data.goals.length) {
-      card.style.display = 'none';
-      if (data.error) body.textContent = data.error;
+      body.innerHTML = `<span style="color:#555">${escHtml(data.error || 'Цели не найдены')}</span>`;
+      document.getElementById('goalsCount').textContent = '';
       return;
     }
-    card.style.display = '';
     document.getElementById('goalsCount').textContent = `${data.goals.length} ${data.goals.length === 1 ? 'цель' : 'целей'}`;
     body.innerHTML = data.goals.map(g =>
       `<span style="display:inline-block;margin-right:16px;margin-bottom:6px">
