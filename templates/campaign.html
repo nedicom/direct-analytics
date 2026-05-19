@@ -699,13 +699,18 @@
       const isWorst = r.cost === maxCost && maxCost > 0 && !isBest;
       const cls = (isBest ? 'best-day' : (isWorst ? 'worst-day' : '')) + ' day-row';
       const ctrCls = r.ctr < 1 && r.impressions > 50 ? 'num lo' : (r.ctr > 5 ? 'num hi' : 'num');
-      return `<tr class="${cls}" onclick="showKeywords('${r.date}')" title="Поисковые запросы за ${fmtDate(r.date)}">
-        <td>${fmtDate(r.date)} <span style="color:#333;font-size:10px">▸</span></td>
+      return `<tr class="${cls}" onclick="toggleDayQueries('${r.date}')">
+        <td>${fmtDate(r.date)} <span id="day-arr-${r.date}" style="color:#333;font-size:10px">▸</span></td>
         <td class="num">${fmtNum(r.impressions)}</td>
         <td class="num">${fmtNum(r.clicks)}</td>
         <td class="${ctrCls}">${r.ctr}%</td>
         <td class="num">${fmtNum(Math.round(r.cost))} ₽</td>
         <td class="num">${r.cpc > 0 ? r.cpc + ' ₽' : '—'}</td>
+      </tr>
+      <tr id="day-exp-${r.date}" style="display:none">
+        <td colspan="6" style="padding:0;border-bottom:1px solid #1a1a24">
+          <div id="day-qbody-${r.date}"></div>
+        </td>
       </tr>`;
     }).join('');
 
@@ -774,34 +779,48 @@
     showHistory(h.analysis, h.title || '', !!h.is_question);
   }
 
-  // ── Keywords modal (per day) ──
-  async function showKeywords(date) {
-    const overlay = document.getElementById('kwOverlay');
-    const body = document.getElementById('kwBody');
-    const title = document.getElementById('kwTitle');
-    const [y, m, d] = date.split('-');
-    title.textContent = `Поисковые запросы — ${d}.${m}.${y}`;
-    body.innerHTML = '<div class="kw-loading">Загружаем данные из Яндекс.Директ…</div>';
-    overlay.classList.add('open');
+  // ── Day queries (inline expand in daily table) ──
+  const _dayQueriesCache = {};
+
+  async function toggleDayQueries(date) {
+    const expRow = document.getElementById(`day-exp-${date}`);
+    const arr    = document.getElementById(`day-arr-${date}`);
+    if (!expRow) return;
+    if (expRow.style.display !== 'none') {
+      expRow.style.display = 'none';
+      if (arr) arr.textContent = '▸';
+      return;
+    }
+    expRow.style.display = '';
+    if (arr) arr.textContent = '▾';
+    const body = document.getElementById(`day-qbody-${date}`);
+    if (_dayQueriesCache[date]) { renderDayQueries(body, _dayQueriesCache[date]); return; }
+    body.innerHTML = '<div style="padding:8px 14px 8px 28px;color:#555;font-size:11px">Загружаем…</div>';
     try {
       const r = await fetch(`/api/keywords/${CAMPAIGN_ID}/${date}`);
       const data = await r.json();
-      if (!data.ok) { body.innerHTML = `<div class="kw-empty">Ошибка: ${data.error}</div>`; return; }
-      if (!data.keywords.length) { body.innerHTML = '<div class="kw-empty">Нет данных за этот день</div>'; return; }
-      const rows = data.keywords.map(k => `<tr>
-        <td class="q" title="${k.query}">${k.query}</td>
-        <td class="r">${k.impressions.toLocaleString('ru-RU')}</td>
-        <td class="r ${k.clicks > 0 ? 'hi' : ''}">${k.clicks}</td>
-        <td class="r">${k.ctr}%</td>
-        <td class="r">${Math.round(k.cost)} ₽</td>
-      </tr>`).join('');
-      body.innerHTML = `<table class="kw-table">
-        <thead><tr>
-          <th>Запрос</th><th class="r">Показы</th><th class="r">Клики</th><th class="r">CTR</th><th class="r">Расход</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-    } catch { body.innerHTML = '<div class="kw-empty">Ошибка сети. Попробуйте снова.</div>'; }
+      _dayQueriesCache[date] = data.ok ? data.keywords : [];
+      if (expRow.style.display !== 'none') renderDayQueries(body, _dayQueriesCache[date]);
+    } catch {
+      if (expRow.style.display !== 'none')
+        body.innerHTML = '<div style="padding:8px 14px 8px 28px;color:#f08080;font-size:11px">Ошибка сети</div>';
+    }
+  }
+
+  function renderDayQueries(el, queries) {
+    if (!queries || !queries.length) {
+      el.innerHTML = '<div style="padding:8px 14px 8px 28px;color:#444;font-size:11px">Нет поисковых запросов за этот день</div>';
+      return;
+    }
+    const rows = queries.map(q => `<tr>
+      <td style="padding:4px 14px 4px 28px;color:#888;font-size:11px;font-family:monospace;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(q.query)}">${escHtml(q.query)}</td>
+      <td style="padding:4px 14px;text-align:right;color:#555;font-size:11px">${fmtNum(q.impressions)}</td>
+      <td style="padding:4px 14px;text-align:right;font-size:11px;color:${q.clicks > 0 ? '#4caf50' : '#555'}">${q.clicks}</td>
+      <td style="padding:4px 14px;text-align:right;color:#555;font-size:11px">${q.ctr}%</td>
+      <td style="padding:4px 14px;text-align:right;color:#555;font-size:11px">${Math.round(q.cost)} ₽</td>
+      <td></td>
+    </tr>`).join('');
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;background:#111118"><tbody>${rows}</tbody></table>`;
   }
 
   // ── Search queries for date range (toolbar button) ──
