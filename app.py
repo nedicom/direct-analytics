@@ -1088,31 +1088,12 @@ def _write_json_cache(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def _fetch_and_cache_goals(campaign_id):
-    result = get_campaign_goals(DIRECT_TOKEN, campaign_id)
-    if result.get("goals"):  # only cache successful results
-        _write_json_cache(_goals_cache_file(campaign_id), result)
-    return result
-
-
 @app.route("/api/campaign_goals/<int:campaign_id>/refresh", methods=["POST"])
-@login_required
-def campaign_goals_refresh(campaign_id):
-    try:
-        result = _fetch_and_cache_goals(campaign_id)
-        return jsonify({"ok": True, **result})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-
 @app.route("/api/campaign_goals/<int:campaign_id>")
 @login_required
 def campaign_goals_endpoint(campaign_id):
-    cached = _read_json_cache(_goals_cache_file(campaign_id), 4 * 3600)
-    if cached:
-        return jsonify({"ok": True, **cached})
     try:
-        result = _fetch_and_cache_goals(campaign_id)
+        result = get_campaign_goals(DIRECT_TOKEN, campaign_id)
         return jsonify({"ok": True, **result})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
