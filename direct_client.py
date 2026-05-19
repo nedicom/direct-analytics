@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 import requests
 from datetime import datetime, timedelta
 
@@ -157,14 +158,17 @@ def get_campaign_stats(
 
 
 def _extract_negatives(field) -> list:
-    """Yandex returns NegativeKeywords as {"Items": [...]} or plain list."""
+    """Yandex returns NegativeKeywords as {"Items": [...]} or plain list.
+    Strips Yandex operator syntax (", !, +) so phrases are stored and displayed cleanly."""
     if not field:
         return []
     if isinstance(field, list):
-        return field
-    if isinstance(field, dict):
-        return field.get("Items") or []
-    return []
+        items = field
+    elif isinstance(field, dict):
+        items = field.get("Items") or []
+    else:
+        return []
+    return [re.sub(r'\s+', ' ', re.sub(r'[!"+]', '', p)).strip().lower() for p in items if p]
 
 
 def get_negatives(token: str, campaign_id: int) -> dict:
