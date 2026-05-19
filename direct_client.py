@@ -262,12 +262,20 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
     headers["processingMode"] = "auto"
     headers["returnMoneyInMicros"] = "false"
 
+    import time
+
     sess = requests.Session()
     sess.trust_env = False
-    resp = sess.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
 
-    body = resp.text.strip()
-    if resp.status_code not in (200, 201, 202) or body.startswith("{"):
+    for _attempt in range(12):
+        resp = sess.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
+        if resp.status_code == 200:
+            break
+        if resp.status_code in (201, 202):
+            wait = min(int(resp.headers.get("retryIn", 5)), 30)
+            time.sleep(wait)
+            continue
+        body = resp.text.strip()
         try:
             err = resp.json()
             msg = (err.get("error", {}).get("error_detail")
@@ -275,6 +283,19 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
                    or f"HTTP {resp.status_code}")
         except Exception:
             msg = body[:300] or f"HTTP {resp.status_code}"
+        raise Exception(f"Reports API: {msg}")
+    else:
+        raise Exception("Reports API: отчёт не готов после нескольких попыток, попробуйте позже")
+
+    body = resp.text.strip()
+    if body.startswith("{"):
+        try:
+            err = resp.json()
+            msg = (err.get("error", {}).get("error_detail")
+                   or err.get("error", {}).get("error_string")
+                   or "неизвестная ошибка")
+        except Exception:
+            msg = body[:300]
         raise Exception(f"Reports API: {msg}")
 
     # Columns: CampaignId(0), Query(1), Impressions(2), Clicks(3), Cost(4)
