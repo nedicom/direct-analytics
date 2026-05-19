@@ -732,7 +732,11 @@ def debug_campaign(campaign_id):
         DIRECT_API_URL + "campaigns",
         json={"method": "get", "params": {
             "SelectionCriteria": {"Ids": [campaign_id]},
-            "FieldNames": ["Id", "Name", "Type", "CounterIds"],
+            "FieldNames": ["Id", "Name", "Type"],
+            "TextCampaignFieldNames": ["CounterIds"],
+            "UnifiedCampaignFieldNames": ["CounterIds"],
+            "SmartCampaignFieldNames": ["CounterIds"],
+            "DynamicTextCampaignFieldNames": ["CounterIds"],
         }},
         headers=_headers(DIRECT_TOKEN),
     )
@@ -1082,6 +1086,17 @@ def _read_json_cache(path, max_age_seconds):
 def _write_json_cache(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.route("/api/campaign_goals/<int:campaign_id>/refresh", methods=["POST"])
+@login_required
+def campaign_goals_refresh(campaign_id):
+    try:
+        result = get_campaign_goals(DIRECT_TOKEN, campaign_id)
+        _write_json_cache(_goals_cache_file(campaign_id), result)
+        return jsonify({"ok": True, **result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/api/campaign_goals/<int:campaign_id>")

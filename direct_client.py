@@ -485,12 +485,28 @@ def get_campaign_goals(token: str, campaign_id: int) -> dict:
             DIRECT_API_URL + "campaigns",
             json={"method": "get", "params": {
                 "SelectionCriteria": {"Ids": [campaign_id]},
-                "FieldNames": ["Id", "CounterIds"],
+                "FieldNames": ["Id", "Type"],
+                "TextCampaignFieldNames": ["CounterIds"],
+                "UnifiedCampaignFieldNames": ["CounterIds"],
+                "SmartCampaignFieldNames": ["CounterIds"],
+                "DynamicTextCampaignFieldNames": ["CounterIds"],
+                "MobileAppCampaignFieldNames": ["CounterIds"],
             }},
             headers=_headers(token),
         )
         camps = resp.json().get("result", {}).get("Campaigns", [])
-        raw_ids = camps[0].get("CounterIds") if camps else None
+        camp = camps[0] if camps else {}
+        # CounterIds is inside the type-specific sub-object
+        ctype = camp.get("Type", "")
+        type_key = {
+            "TEXT_CAMPAIGN": "TextCampaign",
+            "UNIFIED_CAMPAIGN": "UnifiedCampaign",
+            "SMART_CAMPAIGN": "SmartCampaign",
+            "DYNAMIC_TEXT_CAMPAIGN": "DynamicTextCampaign",
+            "MOBILE_APP_CAMPAIGN": "MobileAppCampaign",
+        }.get(ctype, "")
+        sub = camp.get(type_key, {}) if type_key else {}
+        raw_ids = sub.get("CounterIds")
         counter_ids = (raw_ids.get("Items") if isinstance(raw_ids, dict) else raw_ids) or []
     except Exception as e:
         return {"goals": [], "error": str(e)}
