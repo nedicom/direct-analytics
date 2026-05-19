@@ -837,12 +837,8 @@
     if (data.updated_at) {
       document.getElementById('kwBidsUpdated').textContent = `обновлено ${data.updated_at}`;
     }
-    const stateLabel = s => ({ON:'вкл',OFF:'выкл',SUSPENDED:'приост.',ENDED:'завершён',ARCHIVED:'архив'}[s] || s || '');
-    const stateColor = s => ({ON:'#4caf50',OFF:'#555',SUSPENDED:'#c8a040',ENDED:'#555',ARCHIVED:'#333'}[s] || '#555');
-    const servingBadge = s => s === 'RARELY_SERVED' ? ' <span style="font-size:9px;color:#c8a040" title="Мало показов">⚠</span>' : '';
     const rows = data.keywords.map(kw => `<tr>
       <td class="kw-text" title="${kw.keyword}">${kw.keyword}</td>
-      <td class="r" style="color:${stateColor(kw.status)};font-size:10px">${stateLabel(kw.status)}${servingBadge(kw.serving)}</td>
       <td class="bid-val">${kw.bid !== null ? kw.bid + ' ₽' : '—'}</td>
       <td class="r">${kw.impressions.toLocaleString('ru-RU')}</td>
       <td class="r ${kw.clicks > 0 ? 'hi' : ''}">${kw.clicks}</td>
@@ -854,7 +850,6 @@
     wrap.innerHTML = `<table class="kw-bids-table">
       <thead><tr>
         <th>Ключевая фраза</th>
-        <th class="r">Статус</th>
         <th class="r">Ставка</th>
         <th class="r">Показы</th>
         <th class="r">Клики</th>

@@ -330,99 +330,79 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
 
 
 def get_keywords_with_stats(token: str, campaign_id: int, date_from: str, date_to: str) -> list[dict]:
-    """Returns all campaign keywords (from Keywords API, like Yandex Direct 'Фразы и ставки')
-    merged with performance stats from CRITERIA_PERFORMANCE_REPORT by CriteriaId."""
+    """Returns campaign keywords with bids and performance stats.
+    Stats come from CRITERIA_PERFORMANCE_REPORT; bids from Keywords API."""
 
     def _int(s): return int(s) if s and s != "--" else 0
     def _float(s): return float(s) if s and s != "--" else 0.0
 
+    # ── Step 1: performance stats from report ──
+    # Columns: Criterion(0), CriteriaType(1), Impressions(2), Clicks(3), Cost(4), Ctr(5), AvgCpc(6)
+    body = _reports_request(token, {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {
+                "DateFrom": date_from,
+                "DateTo": date_to,
+                "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
+            },
+            "FieldNames": ["Criterion", "CriteriaType", "Impressions", "Clicks", "Cost", "Ctr", "AvgCpc"],
+            "ReportName": f"kws_{campaign_id}_{date_from}_{date_to}",
+            "ReportType": "CRITERIA_PERFORMANCE_REPORT",
+            "DateRangeType": "CUSTOM_DATE",
+            "Format": "TSV",
+            "IncludeVAT": "YES",
+            "IncludeDiscount": "NO",
+        },
+    })
+
+    stats: dict[str, dict] = {}
+    for line in body.split("\n")[2:]:
+        parts = line.split("\t")
+        if len(parts) < 7:
+            continue
+        try:
+            if parts[1] != "KEYWORD":
+                continue
+            kw = parts[0]
+            stats[kw] = {
+                "keyword": kw,
+                "impressions": _int(parts[2]),
+                "clicks": _int(parts[3]),
+                "cost": round(_float(parts[4]), 2),
+                "ctr": round(_float(parts[5]), 2),
+                "avg_cpc": round(_float(parts[6]), 2),
+                "bid": None,
+            }
+        except (ValueError, IndexError):
+            continue
+
+    # ── Step 2: keyword bids from Keywords API ──
     sess = requests.Session()
     sess.trust_env = False
-
-    # ── Step 1: all keywords + bids from Keywords API (source of truth) ──
-    keywords: dict[int, dict] = {}  # id → keyword dict
-    offset = 0
-    while True:
+    try:
         resp = sess.post(
             DIRECT_API_URL + "keywords",
             json={
                 "method": "get",
                 "params": {
                     "SelectionCriteria": {"CampaignIds": [campaign_id]},
-                    "FieldNames": ["Id", "Keyword", "Status", "State", "ServingStatus"],
+                    "FieldNames": ["Keyword", "Status"],
                     "BiddingFieldNames": ["Bid"],
-                    "Page": {"Limit": 1000, "Offset": offset},
+                    "Page": {"Limit": 10000},
                 },
             },
             headers=_headers(token),
         )
-        data = resp.json()
-        if "error" in data:
-            raise Exception(data["error"].get("error_detail") or data["error"].get("error_string", "Keywords API error"))
-        items = data.get("result", {}).get("Keywords", [])
-        for kw in items:
-            kw_id = kw["Id"]
-            bid_raw = kw.get("Bid")
-            keywords[kw_id] = {
-                "keyword": kw["Keyword"],
-                "status": kw.get("State", kw.get("Status", "")),
-                "serving": kw.get("ServingStatus", ""),
-                "bid": round(_float(str(bid_raw)), 2) if bid_raw else None,
-                "impressions": 0, "clicks": 0, "cost": 0.0, "ctr": 0.0, "avg_cpc": 0.0,
-            }
-        limited = data.get("result", {}).get("LimitedBy")
-        if not limited:
-            break
-        offset = limited
-
-    if not keywords:
-        return []
-
-    # ── Step 2: performance stats by CriteriaId ──
-    # Columns: CriteriaId(0), CriteriaType(1), Impressions(2), Clicks(3), Cost(4), Ctr(5), AvgCpc(6)
-    try:
-        body = _reports_request(token, {
-            "method": "get",
-            "params": {
-                "SelectionCriteria": {
-                    "DateFrom": date_from,
-                    "DateTo": date_to,
-                    "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
-                },
-                "FieldNames": ["CriteriaId", "CriteriaType", "Impressions", "Clicks", "Cost", "Ctr", "AvgCpc"],
-                "ReportName": f"kws2_{campaign_id}_{date_from}_{date_to}",
-                "ReportType": "CRITERIA_PERFORMANCE_REPORT",
-                "DateRangeType": "CUSTOM_DATE",
-                "Format": "TSV",
-                "IncludeVAT": "YES",
-                "IncludeDiscount": "NO",
-            },
-        })
-        for line in body.split("\n")[2:]:
-            parts = line.split("\t")
-            if len(parts) < 7:
-                continue
-            try:
-                if parts[1] != "KEYWORD":
-                    continue
-                kw_id = int(parts[0])
-                if kw_id not in keywords:
-                    continue
-                clicks = _int(parts[3])
-                cost   = round(_float(parts[4]), 2)
-                keywords[kw_id].update({
-                    "impressions": _int(parts[2]),
-                    "clicks": clicks,
-                    "cost": cost,
-                    "ctr": round(_float(parts[5]), 2),
-                    "avg_cpc": round(_float(parts[6]), 2),
-                })
-            except (ValueError, IndexError):
-                continue
+        for kw_obj in resp.json().get("result", {}).get("Keywords", []):
+            text = kw_obj.get("Keyword", "")
+            bid_val = kw_obj.get("Bid")
+            if text in stats and bid_val:
+                stats[text]["bid"] = round(_float(str(bid_val)), 2)
     except Exception:
-        pass  # stats are optional — show keywords even if report fails
+        pass  # bids are optional — don't fail the whole call
 
-    result = sorted(keywords.values(), key=lambda x: x["clicks"], reverse=True)
+    result = sorted(stats.values(), key=lambda x: x["clicks"], reverse=True)
     return result
 
 
