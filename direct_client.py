@@ -474,6 +474,97 @@ def set_keyword_bid(token: str, keyword_id: int, bid: float) -> None:
             raise Exception(item_errors[0].get("Message", "Ошибка установки ставки"))
 
 
+def get_campaign_goals(token: str, campaign_id: int) -> dict:
+    """Fetch Metrica goal names for a campaign via counter ID.
+    Returns {"goals": [{id, name}], "error": str|None}"""
+    sess = requests.Session()
+    sess.trust_env = False
+
+    try:
+        resp = sess.post(
+            DIRECT_API_URL + "campaigns",
+            json={"method": "get", "params": {
+                "SelectionCriteria": {"Ids": [campaign_id]},
+                "FieldNames": ["Id", "CounterIds"],
+            }},
+            headers=_headers(token),
+        )
+        camps = resp.json().get("result", {}).get("Campaigns", [])
+        raw_ids = camps[0].get("CounterIds") if camps else None
+        counter_ids = (raw_ids.get("Items") if isinstance(raw_ids, dict) else raw_ids) or []
+    except Exception as e:
+        return {"goals": [], "error": str(e)}
+
+    if not counter_ids:
+        return {"goals": [], "error": "Счётчик Яндекс.Метрики не подключён к кампании"}
+
+    goals = []
+    for cid in counter_ids[:3]:
+        try:
+            r = sess.get(
+                f"https://api-metrika.yandex.net/management/v1/counter/{cid}/goals",
+                headers={"Authorization": f"OAuth {token}"},
+                timeout=10,
+            )
+            if r.status_code == 403:
+                return {"goals": [], "error": "Нет доступа к Метрике — добавьте разрешение metrika:read в OAuth-приложение"}
+            if r.status_code == 200:
+                for g in r.json().get("goals", []):
+                    goals.append({"id": g["id"], "name": g.get("name", f"Цель {g['id']}")})
+        except Exception:
+            pass
+
+    if not goals:
+        return {"goals": [], "error": "Цели не найдены в счётчике Метрики"}
+    return {"goals": goals, "error": None}
+
+
+def get_goal_period_stats(token: str, campaign_id: int, goal_id: int,
+                           date_from: str, date_to: str) -> dict:
+    """Returns {total, daily: {date: conv}, cpa} for one Metrica goal."""
+    try:
+        body = _reports_request(token, {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": {
+                    "DateFrom": date_from, "DateTo": date_to,
+                    "Filter": [{"Field": "CampaignId", "Operator": "IN", "Values": [str(campaign_id)]}],
+                },
+                "Goals": [goal_id],
+                "FieldNames": ["Date", "Conversions", "CostPerConversion"],
+                "ReportName": f"goal_{campaign_id}_{goal_id}_{date_from}_{date_to}",
+                "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
+                "DateRangeType": "CUSTOM_DATE",
+                "Format": "TSV",
+                "IncludeVAT": "YES",
+                "IncludeDiscount": "NO",
+            },
+        })
+    except Exception:
+        return {"total": 0, "daily": {}, "cpa": 0}
+
+    def _int(s): return int(s) if s and s != "--" else 0
+    def _float(s): return float(s) if s and s != "--" else 0.0
+
+    daily, total, weighted_cost = {}, 0, 0.0
+    for line in body.split("\n")[2:]:
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        try:
+            date = parts[0]
+            conv = _int(parts[1])
+            cpa = _float(parts[2]) if len(parts) > 2 else 0.0
+            if conv:
+                daily[date] = daily.get(date, 0) + conv
+                weighted_cost += conv * cpa
+            total += conv
+        except (ValueError, IndexError):
+            continue
+
+    return {"total": total, "daily": daily, "cpa": round(weighted_cost / total, 2) if total else 0}
+
+
 def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
     """Returns search queries for a campaign on a specific date, sorted by clicks desc.
     Columns: Query(0) Impressions(1) Clicks(2) Cost(3) Ctr(4) AvgImpressionPosition(5) AvgClickPosition(6)"""

@@ -370,6 +370,16 @@
     {% endif %}
   </div>
 
+  <!-- Goals card -->
+  <div class="card" id="goalsCard" style="margin-bottom:20px;display:none">
+    <div class="card-header">
+      <span>Цели кампании <span id="goalsCount" class="card-count"></span></span>
+      <button class="pbtn" id="btnGoalStats" onclick="loadGoalStats()" style="color:#fc3f1d;border-color:#fc3f1d">Загрузить статистику целей</button>
+    </div>
+    <div id="goalsBody" style="padding:14px 18px;font-size:12px;color:#555;min-height:40px">Загружаем…</div>
+    <div id="goalStatsBody" style="display:none;padding:0 18px 14px"></div>
+  </div>
+
   <!-- Keywords+bids card -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header">
@@ -729,7 +739,7 @@
         ${convCell}
       </tr>
       <tr id="day-exp-${r.date}" style="display:none">
-        <td colspan="6" style="padding:0;border-bottom:1px solid #1a1a24">
+        <td colspan="${HAS_CONV ? 8 : 6}" style="padding:0;border-bottom:1px solid #1a1a24">
           <div id="day-qbody-${r.date}"></div>
         </td>
       </tr>`;
@@ -802,6 +812,76 @@
     showHistory(h.analysis, h.title || '', !!h.is_question);
   }
 
+  // ── Goals ──
+  let _goalStatsData = null;
+
+  async function loadGoals() {
+    try {
+      const r = await fetch(`/api/campaign_goals/${CAMPAIGN_ID}`);
+      const data = await r.json();
+      const card = document.getElementById('goalsCard');
+      const body = document.getElementById('goalsBody');
+      if (!data.ok || !data.goals || !data.goals.length) {
+        // No goals or error — hide card silently
+        card.style.display = 'none';
+        return;
+      }
+      card.style.display = '';
+      document.getElementById('goalsCount').textContent = `${data.goals.length} целей`;
+      body.innerHTML = data.goals.map(g =>
+        `<span style="display:inline-block;margin-right:16px;margin-bottom:6px">
+          <span style="color:#ccc">${escHtml(g.name)}</span>
+          <span style="color:#444;font-size:10px;margin-left:4px">ID ${g.id}</span>
+        </span>`
+      ).join('');
+    } catch { /* silently ignore */ }
+  }
+
+  async function loadGoalStats() {
+    const btn = document.getElementById('btnGoalStats');
+    const statsBody = document.getElementById('goalStatsBody');
+    btn.disabled = true;
+    btn.textContent = 'Загружаем…';
+    statsBody.style.display = 'block';
+    statsBody.innerHTML = '<div style="font-size:11px;color:#555;padding:4px 0 10px">Получаем отчёты по целям из Яндекс.Директ…</div>';
+    try {
+      const r = await fetch(`/api/campaign_goal_stats/${CAMPAIGN_ID}?date_from=${DATE_FROM}&date_to=${DATE_TO}`);
+      const data = await r.json();
+      if (!data.ok) {
+        statsBody.innerHTML = `<div style="font-size:11px;color:#f08080;padding:4px 0 10px">Ошибка: ${escHtml(data.error)}</div>`;
+        btn.disabled = false; btn.textContent = 'Загрузить статистику целей';
+        return;
+      }
+      _goalStatsData = data.goals_stats;
+      // Build summary table
+      const goalList = Object.values(_goalStatsData);
+      if (!goalList.length || goalList.every(g => g.total === 0)) {
+        statsBody.innerHTML = '<div style="font-size:11px;color:#555;padding:4px 0 10px">За период достижений целей не зафиксировано.</div>';
+      } else {
+        const rows = goalList.filter(g => g.total > 0).map(g =>
+          `<tr>
+            <td style="padding:5px 12px;color:#ccc;font-size:12px">${escHtml(g.name)}</td>
+            <td style="padding:5px 12px;text-align:right;color:#4caf50;font-weight:600;font-size:12px">${g.total}</td>
+            <td style="padding:5px 12px;text-align:right;color:#aaa;font-size:12px">${g.cpa > 0 ? g.cpa + ' ₽' : '—'}</td>
+          </tr>`
+        ).join('');
+        statsBody.innerHTML = `<table style="border-collapse:collapse;margin-bottom:8px">
+          <thead><tr>
+            <th style="padding:5px 12px;text-align:left;color:#444;font-size:10px;font-weight:500">Цель</th>
+            <th style="padding:5px 12px;text-align:right;color:#444;font-size:10px;font-weight:500">Конверсии</th>
+            <th style="padding:5px 12px;text-align:right;color:#444;font-size:10px;font-weight:500">CPA</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      }
+      btn.textContent = '↻ Обновить';
+    } catch {
+      statsBody.innerHTML = '<div style="font-size:11px;color:#f08080;padding:4px 0 10px">Ошибка сети</div>';
+      btn.textContent = 'Загрузить статистику целей';
+    }
+    btn.disabled = false;
+  }
+
   // ── Day queries (inline expand in daily table) ──
   const _dayQueriesCache = {};
 
@@ -817,24 +897,24 @@
     expRow.style.display = '';
     if (arr) arr.textContent = '▾';
     const body = document.getElementById(`day-qbody-${date}`);
-    if (_dayQueriesCache[date]) { renderDayQueries(body, _dayQueriesCache[date]); return; }
+    if (_dayQueriesCache[date]) { renderDayQueries(body, _dayQueriesCache[date], date); return; }
     body.innerHTML = '<div style="padding:8px 14px 8px 28px;color:#555;font-size:11px">Загружаем…</div>';
     try {
       const r = await fetch(`/api/keywords/${CAMPAIGN_ID}/${date}`);
       const data = await r.json();
       _dayQueriesCache[date] = data.ok ? data.keywords : [];
-      if (expRow.style.display !== 'none') renderDayQueries(body, _dayQueriesCache[date]);
+      if (expRow.style.display !== 'none') renderDayQueries(body, _dayQueriesCache[date], date);
     } catch {
       if (expRow.style.display !== 'none')
         body.innerHTML = '<div style="padding:8px 14px 8px 28px;color:#f08080;font-size:11px">Ошибка сети</div>';
     }
   }
 
-  function renderDayQueries(el, queries) {
+  function renderDayQueries(el, queries, date) {
+    let html = '';
     if (!queries || !queries.length) {
-      el.innerHTML = '<div style="padding:8px 14px 8px 28px;color:#444;font-size:11px">Нет поисковых запросов за этот день</div>';
-      return;
-    }
+      html += '<div style="padding:8px 14px 8px 28px;color:#444;font-size:11px">Нет поисковых запросов за этот день</div>';
+    } else {
     const S = 'padding:4px 10px;text-align:right;color:#555;font-size:11px';
     const rows = queries.map(q => {
       const impPos = q.avg_imp_pos > 0 ? q.avg_imp_pos.toFixed(1) : '—';
@@ -851,7 +931,7 @@
       </tr>`;
     }).join('');
     const H = 'padding:4px 10px;text-align:right;color:#444;font-size:10px;font-weight:500;background:#111118';
-    el.innerHTML = `<table style="width:100%;border-collapse:collapse;background:#111118">
+    html += `<table style="width:100%;border-collapse:collapse;background:#111118">
       <thead><tr>
         <th style="padding:4px 10px 4px 28px;text-align:left;color:#444;font-size:10px;font-weight:500;background:#111118">Запрос</th>
         <th style="${H}">Показы</th><th style="${H}">Клики</th><th style="${H}">CTR</th>
@@ -859,6 +939,25 @@
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+    } // end else (queries exist)
+
+    // Goal breakdown for the day
+    if (_goalStatsData && date) {
+      const goalItems = Object.values(_goalStatsData)
+        .filter(g => g.daily && g.daily[date] > 0)
+        .map(g => `<span style="font-size:11px;color:#888;margin-right:14px">
+          <span style="color:#4caf50;font-weight:600">${g.daily[date]}</span> ${escHtml(g.name)}
+          ${g.cpa > 0 ? `<span style="color:#555"> · CPA ${g.daily_cpa && g.daily_cpa[date] ? g.daily_cpa[date] : g.cpa} ₽</span>` : ''}
+        </span>`);
+      if (goalItems.length) {
+        html += `<div style="padding:5px 14px 5px 28px;background:#0f1a0f;border-top:1px solid #1a2a1a;display:flex;flex-wrap:wrap;align-items:center;gap:4px">
+          <span style="font-size:10px;color:#4caf50;font-weight:600;margin-right:4px">Цели:</span>
+          ${goalItems.join('')}
+        </div>`;
+      }
+    }
+
+    el.innerHTML = html;
   }
 
   // ── Search queries for date range (toolbar button) ──
@@ -1496,6 +1595,7 @@
   loadNegatives();
   loadKwBids();
   loadBidMgmt();
+  loadGoals();
 </script>
 </body>
 </html>

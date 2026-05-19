@@ -10,6 +10,7 @@ from direct_client import (
     get_campaigns, get_campaigns_by_ids, get_campaign_stats, get_keyword_stats,
     get_negatives, update_campaign_negatives, update_adgroup_negatives, get_search_queries,
     get_keywords_with_stats, get_keyword_bids, set_keyword_bid,
+    get_campaign_goals, get_goal_period_stats,
 )
 
 load_dotenv()
@@ -1058,6 +1059,71 @@ def update_keyword_bid(keyword_id):
         return jsonify({"ok": False, "error": "Некорректное значение ставки"}), 400
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def _goals_cache_file(campaign_id):
+    return os.path.join("/tmp", f"direct_goals_{campaign_id}.json")
+
+def _goalstats_cache_file(campaign_id, date_from, date_to):
+    return os.path.join("/tmp", f"direct_goalstats_{campaign_id}_{date_from}_{date_to}.json")
+
+def _read_json_cache(path, max_age_seconds):
+    if not os.path.exists(path):
+        return None
+    age = datetime.now().timestamp() - os.path.getmtime(path)
+    if age > max_age_seconds:
+        return None
+    with open(path, encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return None
+
+def _write_json_cache(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.route("/api/campaign_goals/<int:campaign_id>")
+@login_required
+def campaign_goals_endpoint(campaign_id):
+    path = _goals_cache_file(campaign_id)
+    cached = _read_json_cache(path, 4 * 3600)
+    if cached:
+        return jsonify({"ok": True, **cached})
+    try:
+        result = get_campaign_goals(DIRECT_TOKEN, campaign_id)
+        _write_json_cache(path, result)
+        return jsonify({"ok": True, **result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/campaign_goal_stats/<int:campaign_id>")
+@login_required
+def campaign_goal_stats_endpoint(campaign_id):
+    date_to = request.args.get("date_to", datetime.now().strftime("%Y-%m-%d"))
+    date_from = request.args.get("date_from", (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"))
+    path = _goalstats_cache_file(campaign_id, date_from, date_to)
+    cached = _read_json_cache(path, 3600)
+    if cached:
+        return jsonify({"ok": True, "goals_stats": cached})
+
+    # First get goal list
+    goals_data = get_campaign_goals(DIRECT_TOKEN, campaign_id)
+    if goals_data.get("error") or not goals_data.get("goals"):
+        return jsonify({"ok": False, "error": goals_data.get("error", "Нет целей")}), 400
+
+    goals_stats = {}
+    for g in goals_data["goals"]:
+        try:
+            stats = get_goal_period_stats(DIRECT_TOKEN, campaign_id, g["id"], date_from, date_to)
+            goals_stats[str(g["id"])] = {"name": g["name"], **stats}
+        except Exception:
+            goals_stats[str(g["id"])] = {"name": g["name"], "total": 0, "daily": {}, "cpa": 0}
+
+    _write_json_cache(path, goals_stats)
+    return jsonify({"ok": True, "goals_stats": goals_stats})
 
 
 if __name__ == "__main__":
