@@ -780,8 +780,10 @@ def analyze_negatives(campaign_id):
     all_neg = list(dict.fromkeys(camp_neg + group_neg + client_neg))
 
     neg_str = "\n".join(all_neg) if all_neg else "не установлены"
-    rows = "\n".join(f"{q['query']} | {q['impressions']} показов | {q['clicks']} кликов | {q['cost']} ₽"
-                     for q in queries[:200])
+    rows = "\n".join(
+        f"{q['query']} | ключ: {q['keyword']} | {q['impressions']} показов | {q['clicks']} кликов | CTR {q['ctr']}% | ср.цена {q['avg_cpc']} ₽ | расход {q['cost']} ₽"
+        for q in queries[:200]
+    )
     if not rows:
         return jsonify({"ok": False, "error": "Нет поисковых запросов за период. Возможно, это смарт-кампания или медийная — для них поисковые запросы недоступны."}), 400
 
@@ -800,7 +802,7 @@ def analyze_negatives(campaign_id):
               "(например, 'своими руками', 'что такое')")
     user_msg = (f"Период: {date_from} — {date_to}\n\n"
                 f"Текущие минус-фразы кампании:\n{neg_str}\n\n"
-                f"Поисковые запросы (запрос | показы | клики | расход):\n{rows}")
+                f"Поисковые запросы (запрос | ключевая фраза объявления | показы | клики | CTR | ср.цена клика | расход):\n{rows}")
 
     import anthropic, httpx
     _proxy = os.getenv("HTTPS_PROXY")

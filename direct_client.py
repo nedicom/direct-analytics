@@ -244,37 +244,27 @@ def update_adgroup_negatives(token: str, adgroup_id: int, negatives: list) -> No
         raise Exception(err.get("error_detail") or err.get("error_string", "Ошибка API"))
 
 
-def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: str) -> list[dict]:
-    """Returns aggregated search queries for a campaign over a date range."""
-    payload = {
-        "method": "get",
-        "params": {
-            "SelectionCriteria": {
-                "DateFrom": date_from,
-                "DateTo": date_to,
-            },
-            "FieldNames": ["CampaignId", "Query", "Impressions", "Clicks", "Cost"],
-            "ReportName": f"sq_{campaign_id}_{date_from}_{date_to}",
-            "ReportType": "SEARCH_QUERY_PERFORMANCE_REPORT",
-            "DateRangeType": "CUSTOM_DATE",
-            "Format": "TSV",
-            "IncludeVAT": "YES",
-            "IncludeDiscount": "NO",
-        },
-    }
+def _reports_request(token: str, payload: dict) -> str:
+    """POST to Reports API with retry on 201/202. Returns response body text."""
+    import time
     headers = _headers(token)
     headers["processingMode"] = "auto"
     headers["returnMoneyInMicros"] = "false"
-
-    import time
-
     sess = requests.Session()
     sess.trust_env = False
-
     for _attempt in range(12):
         resp = sess.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
         if resp.status_code == 200:
-            break
+            body = resp.text.strip()
+            if body.startswith("{"):
+                try:
+                    err = resp.json()
+                    msg = (err.get("error", {}).get("error_detail")
+                           or err.get("error", {}).get("error_string") or "неизвестная ошибка")
+                except Exception:
+                    msg = body[:300]
+                raise Exception(f"Reports API: {msg}")
+            return body
         if resp.status_code in (201, 202):
             wait = min(int(resp.headers.get("retryIn", 5)), 30)
             time.sleep(wait)
@@ -283,52 +273,65 @@ def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: st
         try:
             err = resp.json()
             msg = (err.get("error", {}).get("error_detail")
-                   or err.get("error", {}).get("error_string")
-                   or f"HTTP {resp.status_code}")
+                   or err.get("error", {}).get("error_string") or f"HTTP {resp.status_code}")
         except Exception:
             msg = body[:300] or f"HTTP {resp.status_code}"
         raise Exception(f"Reports API: {msg}")
-    else:
-        raise Exception("Reports API: отчёт не готов после нескольких попыток, попробуйте позже")
+    raise Exception("Reports API: отчёт не готов после нескольких попыток, попробуйте позже")
 
-    body = resp.text.strip()
-    if body.startswith("{"):
-        try:
-            err = resp.json()
-            msg = (err.get("error", {}).get("error_detail")
-                   or err.get("error", {}).get("error_string")
-                   or "неизвестная ошибка")
-        except Exception:
-            msg = body[:300]
-        raise Exception(f"Reports API: {msg}")
 
-    # Columns: CampaignId(0), Query(1), Impressions(2), Clicks(3), Cost(4)
-    agg: dict[str, dict] = {}
+def get_search_queries(token: str, campaign_id: int, date_from: str, date_to: str) -> list[dict]:
+    """Returns aggregated search queries for a campaign over a date range."""
+    # Columns: CampaignId(0), Keyword(1), Query(2), Impressions(3), Clicks(4), Cost(5), Ctr(6), AvgCpc(7)
+    body = _reports_request(token, {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {"DateFrom": date_from, "DateTo": date_to},
+            "FieldNames": ["CampaignId", "Keyword", "Query", "Impressions", "Clicks", "Cost", "Ctr", "AvgCpc"],
+            "ReportName": f"sq2_{campaign_id}_{date_from}_{date_to}",
+            "ReportType": "SEARCH_QUERY_PERFORMANCE_REPORT",
+            "DateRangeType": "CUSTOM_DATE",
+            "Format": "TSV",
+            "IncludeVAT": "YES",
+            "IncludeDiscount": "NO",
+        },
+    })
+
+    def _int(s): return int(s) if s and s != "--" else 0
+    def _float(s): return float(s) if s and s != "--" else 0.0
+
+    # Aggregate by (keyword, query) pair
+    agg: dict[tuple, dict] = {}
     for line in body.split("\n")[2:]:
         parts = line.split("\t")
-        if len(parts) < 5 or parts[0] == "Total":
+        if len(parts) < 8:
             continue
         try:
             if int(parts[0]) != campaign_id:
                 continue
-            q = parts[1]
-            if q not in agg:
-                agg[q] = {"query": q, "impressions": 0, "clicks": 0, "cost": 0.0}
-            agg[q]["impressions"] += int(parts[2]) if parts[2] != "--" else 0
-            agg[q]["clicks"] += int(parts[3]) if parts[3] != "--" else 0
-            agg[q]["cost"] += float(parts[4]) if parts[4] != "--" else 0.0
+            key = (parts[1], parts[2])  # (keyword, query)
+            if key not in agg:
+                agg[key] = {"keyword": parts[1], "query": parts[2],
+                            "impressions": 0, "clicks": 0, "cost": 0.0}
+            agg[key]["impressions"] += _int(parts[3])
+            agg[key]["clicks"] += _int(parts[4])
+            agg[key]["cost"] += _float(parts[5])
         except (ValueError, IndexError):
             continue
 
     result = sorted(agg.values(), key=lambda x: x["impressions"], reverse=True)[:300]
     for r in result:
         r["cost"] = round(r["cost"], 2)
+        clicks = r["clicks"]
+        impr = r["impressions"]
+        r["ctr"] = round(clicks / impr * 100, 2) if impr else 0.0
+        r["avg_cpc"] = round(r["cost"] / clicks, 2) if clicks else 0.0
     return result
 
 
 def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
     """Returns search queries for a campaign on a specific date, sorted by clicks desc."""
-    payload = {
+    body = _reports_request(token, {
         "method": "get",
         "params": {
             "SelectionCriteria": {
@@ -344,26 +347,7 @@ def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
             "IncludeVAT": "YES",
             "IncludeDiscount": "NO",
         },
-    }
-    headers = _headers(token)
-    headers["processingMode"] = "auto"
-    headers["returnMoneyInMicros"] = "false"
-
-    session = requests.Session()
-    session.trust_env = False
-    resp = session.post(DIRECT_API_URL + "reports", json=payload, headers=headers)
-
-    body = resp.text.strip()
-    if resp.status_code not in (200, 201, 202) or body.startswith("{"):
-        try:
-            err = resp.json()
-            msg = (err.get("error", {}).get("error_detail")
-                   or err.get("error", {}).get("error_string")
-                   or f"HTTP {resp.status_code}")
-        except Exception:
-            msg = body[:300] or f"HTTP {resp.status_code}"
-        raise Exception(f"Reports API: {msg}")
-
+    })
     result = []
     for line in body.split("\n")[2:]:
         parts = line.split("\t")
@@ -379,6 +363,5 @@ def get_keyword_stats(token: str, campaign_id: int, date: str) -> list[dict]:
             })
         except (ValueError, IndexError):
             continue
-
     result.sort(key=lambda x: x["clicks"], reverse=True)
     return result
